@@ -12,7 +12,7 @@ use db::{
 use models::{Player, Tournament};
 use rusqlite::Connection;
 use std::path::PathBuf;
-use types::{CreatePlayerError, GetPlayersError, GetTournamentError, RusqliteToInvokeError};
+use types::RusqliteToInvokeError;
 
 #[tauri::command]
 fn pick_tournament_file() -> Option<PathBuf> {
@@ -39,48 +39,22 @@ async fn create_tournament(tournament: Tournament) -> Result<Option<PathBuf>, Ru
 }
 
 #[tauri::command]
-async fn get_tournament(path: PathBuf) -> Result<Tournament, GetTournamentError> {
-    if !path.exists() {
-        return Err(GetTournamentError::PathNotFound);
-    }
-    match Connection::open(path) {
-        Err(_) => Err(GetTournamentError::DatabaseNotFound),
-        Ok(connection) => match select_tournament(&connection) {
-            Err(_) => Err(GetTournamentError::TournamentNotFound),
-            Ok(tournament) => Ok(tournament),
-        },
-    }
+async fn get_tournament(path: PathBuf) -> Result<Tournament, RusqliteToInvokeError> {
+    let connection = open_not_create(&path)?;
+    Ok(select_tournament(&connection)?)
 }
 
 #[tauri::command]
-async fn get_players(path: PathBuf) -> Result<Vec<Player>, GetPlayersError> {
-    if !path.exists() {
-        return Err(GetPlayersError::PathNotFound);
-    }
-    match Connection::open(path) {
-        Err(_) => Err(GetPlayersError::DatabaseNotFound),
-        Ok(connection) => match select_players(&connection) {
-            Err(_) => Err(GetPlayersError::PlayersAccessError),
-            Ok(players) => Ok(players),
-        },
-    }
+async fn get_players(path: PathBuf) -> Result<Vec<Player>, RusqliteToInvokeError> {
+    let connection = open_not_create(&path)?;
+    Ok(select_players(&connection)?)
 }
 
 #[tauri::command]
-async fn create_player(path: PathBuf, player: Player) -> Result<Player, CreatePlayerError> {
-    if !path.exists() {
-        return Err(CreatePlayerError::PathNotFound);
-    }
-    match Connection::open(path) {
-        Err(_) => Err(CreatePlayerError::DatabaseNotFound),
-        Ok(connection) => match insert_player(&connection, &player) {
-            Err(e) => {
-                println!("{}", e);
-                Err(CreatePlayerError::InsertPlayerError)
-            }
-            Ok(_) => Ok(player),
-        },
-    }
+async fn create_player(path: PathBuf, player: Player) -> Result<Player, RusqliteToInvokeError> {
+    let connection = open_not_create(&path)?;
+    insert_player(&connection, &player)?;
+    Ok(player)
 }
 
 #[tauri::command]

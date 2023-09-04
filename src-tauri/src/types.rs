@@ -1,26 +1,4 @@
-use serde::{Deserialize, Serialize};
 use tauri::InvokeError;
-
-#[derive(Deserialize, Serialize)]
-pub enum GetTournamentError {
-    PathNotFound,
-    DatabaseNotFound,
-    TournamentNotFound,
-}
-
-#[derive(Deserialize, Serialize)]
-pub enum GetPlayersError {
-    PathNotFound,
-    DatabaseNotFound,
-    PlayersAccessError,
-}
-
-#[derive(Deserialize, Serialize)]
-pub enum CreatePlayerError {
-    PathNotFound,
-    DatabaseNotFound,
-    InsertPlayerError,
-}
 
 pub struct RusqliteToInvokeError(rusqlite::Error);
 
