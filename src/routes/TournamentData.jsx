@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLoaderData, useSearchParams } from "react-router-dom";
+import { useLoaderData } from "react-router-dom";
 
 function TournamentData() {
     const tournament = useLoaderData()

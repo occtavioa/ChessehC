@@ -18,7 +18,7 @@ const router = createBrowserRouter([
     element: <TournamentLayout></TournamentLayout>,
     children: [
       {
-        path: "data",
+        index: true,
         loader: async ({params}) => {
           const path = atob(params.path);
 
