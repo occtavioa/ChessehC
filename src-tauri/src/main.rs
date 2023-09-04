@@ -5,14 +5,17 @@ mod db;
 mod models;
 mod types;
 
-use db::{create_schema, insert_tournament, select_players, select_tournament, insert_player};
+use db::{
+    create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
+    select_players, select_tournament,
+};
 use models::{Player, Tournament};
 use rusqlite::Connection;
 use std::path::PathBuf;
-use types::{GetPlayersError, GetTournamentError, RusqliteToInvokeError, CreatePlayerError};
+use types::{CreatePlayerError, GetPlayersError, GetTournamentError, RusqliteToInvokeError};
 
 #[tauri::command]
-async fn pick_tournament_file() -> Option<PathBuf> {
+fn pick_tournament_file() -> Option<PathBuf> {
     tauri::api::dialog::blocking::FileDialogBuilder::new()
         .add_filter("chessehc tournament file", &["ctf"])
         .pick_file()
@@ -74,10 +77,16 @@ async fn create_player(path: PathBuf, player: Player) -> Result<Player, CreatePl
             Err(e) => {
                 println!("{}", e);
                 Err(CreatePlayerError::InsertPlayerError)
-            },
+            }
             Ok(_) => Ok(player),
         },
     }
+}
+
+#[tauri::command]
+async fn get_current_round(path: PathBuf) -> Result<Option<u16>, RusqliteToInvokeError> {
+    let connection = open_not_create(&path)?;
+    Ok(select_current_round(&connection)?)
 }
 
 fn main() {
@@ -87,7 +96,8 @@ fn main() {
             pick_tournament_file,
             get_tournament,
             get_players,
-            create_player
+            create_player,
+            get_current_round
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

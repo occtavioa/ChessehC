@@ -1,11 +1,14 @@
-use std::path::Path;
 use crate::models::{Player, Tournament};
 use rusqlite::{params, Connection, OpenFlags};
+use std::path::Path;
 
 pub fn open_not_create(path: &Path) -> rusqlite::Result<Connection> {
-    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE
-        | OpenFlags::SQLITE_OPEN_NO_MUTEX
-        | OpenFlags::SQLITE_OPEN_URI)
+    Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_WRITE
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_URI,
+    )
 }
 
 pub fn create_schema(connection: &Connection) -> rusqlite::Result<()> {
@@ -60,7 +63,7 @@ pub fn insert_tournament(
             (?9),
             (?10),
             (?11),
-            (?12)
+            NULL
         )
     ",
         params![
@@ -75,7 +78,6 @@ pub fn insert_tournament(
             &tournament.deputy_chief_arbiter,
             &tournament.time_control,
             &tournament.number_rounds,
-            0,
         ],
     )
 }
@@ -101,7 +103,17 @@ pub fn select_tournament(connection: &Connection) -> rusqlite::Result<Tournament
 
 pub fn select_players(connection: &Connection) -> rusqlite::Result<Vec<Player>> {
     let mut query: rusqlite::Statement<'_> = connection.prepare("SELECT * FROM \"Players\"")?;
-    let players_iter = query.query_map([], |row| Ok(Player { name: row.get(1)?, sex: row.get(2)?, title: row.get(3)?, rating: row.get(4)?, fide_federation: row.get(5)?, fide_number: row.get(6)?, birth_date: row.get(7)? }))?;
+    let players_iter = query.query_map([], |row| {
+        Ok(Player {
+            name: row.get(1)?,
+            sex: row.get(2)?,
+            title: row.get(3)?,
+            rating: row.get(4)?,
+            fide_federation: row.get(5)?,
+            fide_number: row.get(6)?,
+            birth_date: row.get(7)?,
+        })
+    })?;
     Ok(players_iter
         .map(|player| player.unwrap())
         .into_iter()
@@ -133,4 +145,10 @@ pub fn insert_player(connection: &Connection, player: &Player) -> rusqlite::Resu
             &player.birth_date,
         ],
     )
+}
+
+pub fn select_current_round(connection: &Connection) -> rusqlite::Result<Option<u16>> {
+    connection.query_row("SELECT CurrentRound FROM \"Tournament\"", [], |row| {
+        Ok(row.get(0)?)
+    })
 }

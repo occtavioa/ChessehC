@@ -13,7 +13,7 @@ pub struct Tournament {
     pub deputy_chief_arbiter: String,
     pub time_control: String,
     pub number_rounds: u16,
-    pub current_round: u16,
+    pub current_round: Option<u16>,
 }
 
 #[derive(Default, Deserialize, Serialize)]

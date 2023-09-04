@@ -10,4 +10,4 @@ function Pairings() {
     )
 }
 
-
+export default Pairings
