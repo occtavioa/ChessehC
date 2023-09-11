@@ -30,7 +30,7 @@ function Home() {
 
                     let tournament = Object.fromEntries(new FormData(e.target));
                     tournament.number_rounds = parseInt(tournament.number_rounds);
-                    tournament.current_round = 0;
+                    tournament.current_round = null;
 
                     invoke("create_tournament", {tournament: tournament})
                         .then((path) => {console.log("Torneo creado en", path);})

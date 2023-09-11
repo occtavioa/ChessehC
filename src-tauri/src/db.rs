@@ -1,8 +1,8 @@
-use crate::models::{Player, Tournament};
-use rusqlite::{params, Connection, OpenFlags};
-use std::path::Path;
+use crate::models::{Player, Tournament, Pairing};
+use rusqlite::{params, Connection, OpenFlags, Result};
+use std::{path::Path, default};
 
-pub fn open_not_create(path: &Path) -> rusqlite::Result<Connection> {
+pub fn open_not_create(path: &Path) -> Result<Connection> {
     Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_WRITE
@@ -11,9 +11,10 @@ pub fn open_not_create(path: &Path) -> rusqlite::Result<Connection> {
     )
 }
 
-pub fn create_schema(connection: &Connection) -> rusqlite::Result<()> {
+pub fn create_schema(connection: &Connection) -> Result<()> {
     connection.execute_batch(
-        "CREATE TABLE \"Tournament\" (
+        "
+        CREATE TABLE \"Tournament\" (
             \"Id\"      INTEGER,
             \"Name\"	TEXT NOT NULL,
             \"City\"	TEXT,
@@ -25,28 +26,53 @@ pub fn create_schema(connection: &Connection) -> rusqlite::Result<()> {
             \"ChiefArbiter\"	TEXT,
             \"DeputyChiefArbiter\"	TEXT,
             \"TimeControl\"	TEXT,
-            \"NumberRounds\"	INTEGER,
+            \"NumberRounds\"	INTEGER NOT NULL,
             \"CurrentRound\"	INTEGER,
             PRIMARY KEY(\"Id\")
         );
-        CREATE TABLE \"Players\" (
+        CREATE TABLE \"Player\" (
             \"Id\"	INTEGER,
             \"Name\"	TEXT NOT NULL,
+            \"Points\"  REAL NOT NULL,
             \"Sex\"	TEXT,
             \"Title\"	TEXT,
             \"Rating\"	INTEGER,
             \"FideFederation\"	TEXT,
-            \"FideNumber\"	INTEGER,
+            \"FideNumber\"	TEXT,
             \"BirthDate\"	TEXT,
             PRIMARY KEY(\"Id\")
-        );",
+        );
+        CREATE TABLE \"Round\" (
+            \"Id\"	INTEGER,
+            \"Number\"  INTEGER NOT NULL,
+            \"Date\"    TEXT,
+            PRIMARY KEY(\"Id\")
+        );
+        CREATE TABLE \"PlayerStateByRound\" (
+            \"IdPlayer\"    INTEGER,
+            \"IdRound\" INTEGER,
+            \"Points\"  REAL
+        );
+        CREATE TABLE \"MatchByRound\" (
+            \"IdRound\" INTEGER NOT NULL,
+            \"IdWhite\" INTEGER NOT NULL,
+            \"IdBlack\" INTEGER NOT NULL,
+            \"PointsWhite\" TEXT,
+            \"PointsBlack\" TEXT
+        );
+        CREATE TABLE \"ByeByRound\" (
+            IdRound INTEGER NOT NULL,
+            IdPlayer    INTEGER NOT NULL,
+            ByePoint    TEXT NOT NULL
+        );
+        "
     )
 }
 
 pub fn insert_tournament(
     tournament: &Tournament,
     connection: &Connection,
-) -> rusqlite::Result<usize> {
+) -> Result<usize> {
     connection.execute(
         "
         INSERT INTO \"Tournament\" VALUES
@@ -65,7 +91,7 @@ pub fn insert_tournament(
             (?11),
             NULL
         )
-    ",
+        ",
         params![
             &tournament.name,
             &tournament.city,
@@ -82,7 +108,7 @@ pub fn insert_tournament(
     )
 }
 
-pub fn select_tournament(connection: &Connection) -> rusqlite::Result<Tournament> {
+pub fn select_tournament(connection: &Connection) -> Result<Tournament> {
     connection.query_row("SELECT * FROM \"Tournament\"", [], |row| {
         Ok(Tournament {
             name: row.get(1)?,
@@ -101,32 +127,34 @@ pub fn select_tournament(connection: &Connection) -> rusqlite::Result<Tournament
     })
 }
 
-pub fn select_players(connection: &Connection) -> rusqlite::Result<Vec<Player>> {
-    let mut query: rusqlite::Statement<'_> = connection.prepare("SELECT * FROM \"Players\"")?;
+pub fn select_players(connection: &Connection) -> Result<Vec<Player>> {
+    let mut query = connection.prepare("SELECT * FROM \"Player\"")?;
     let players_iter = query.query_map([], |row| {
         Ok(Player {
             name: row.get(1)?,
-            sex: row.get(2)?,
-            title: row.get(3)?,
-            rating: row.get(4)?,
-            fide_federation: row.get(5)?,
-            fide_number: row.get(6)?,
-            birth_date: row.get(7)?,
+            points: row.get(2)?,
+            sex: row.get(3)?,
+            title: row.get(4)?,
+            rating: row.get(5)?,
+            fide_federation: row.get(6)?,
+            fide_number: row.get(7)?,
+            birth_date: row.get(8)?,
         })
-    })?;
+    })?.filter(|p| p.is_ok());
     Ok(players_iter
         .map(|player| player.unwrap())
         .into_iter()
         .collect())
 }
 
-pub fn insert_player(connection: &Connection, player: &Player) -> rusqlite::Result<usize> {
+pub fn insert_player(connection: &Connection, player: &Player) -> Result<usize> {
     connection.execute(
         "
-        INSERT INTO \"Players\" VALUES
+        INSERT INTO \"Player\" VALUES
         (
             NULL,
             (?1),
+            0,
             (?2),
             (?3),
             (?4),
@@ -134,7 +162,7 @@ pub fn insert_player(connection: &Connection, player: &Player) -> rusqlite::Resu
             (?6),
             (?7)
         )
-    ",
+        ",
         params![
             &player.name,
             &player.sex,
@@ -147,8 +175,12 @@ pub fn insert_player(connection: &Connection, player: &Player) -> rusqlite::Resu
     )
 }
 
-pub fn select_current_round(connection: &Connection) -> rusqlite::Result<Option<u16>> {
+pub fn select_current_round(connection: &Connection) -> Result<Option<u16>> {
     connection.query_row("SELECT CurrentRound FROM \"Tournament\"", [], |row| {
         Ok(row.get(0)?)
     })
+}
+
+pub fn select_games(connection: &Connection) -> Result<Vec<Pairing>> {
+    Ok(default::Default::default())
 }

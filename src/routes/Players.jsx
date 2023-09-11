@@ -1,16 +1,24 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useRef } from "react"
-import { useLoaderData, useParams } from "react-router"
+import { useNavigate, useParams } from "react-router"
 
 function Players() {
     const {path} = useParams()
-    const players = useLoaderData()
     const formDialogRef = useRef(null);
+    const playersTableRef = useRef(null);
+    const navigate = useNavigate()
 
     useEffect(() => {
-        console.log(players);
+        invoke("get_players", {path: atob(path)})
+            .then((players) => {
+                console.log(players);
+            })
+            .catch((error) => {
+                console.error(error);
+                navigate("/error")
+            })
     }, [])
-
+    
     return (
         <>
             Jugadores
@@ -18,6 +26,21 @@ function Players() {
             <button onClick={() => {
                 formDialogRef.current.showModal()
             }}>Agregar jugador</button>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Título</th>
+                        <th>Rating</th>
+                        <th>Federación</th>
+                        <th>Número FIDE</th>
+                        <th>Fecha de nacimiento</th>
+                    </tr>
+                </thead>
+                <tbody ref={playersTableRef}>
+                </tbody>
+            </table>
 
             <dialog ref={formDialogRef}>
                 <button onClick={() => {
@@ -29,7 +52,9 @@ function Players() {
 
                     let player = Object.fromEntries(new FormData(e.target))
                     player.rating = parseInt(player.rating)
-                    player.fide_number = parseInt(player.fide_number)
+                    player.fide_number = player.fide_number === "" ? null : player.fide_number
+                    player.title = null
+                    player.points = 0;
 
                     console.log(player);
                     invoke("create_player", {path: atob(path), player: player})
@@ -55,7 +80,7 @@ function Players() {
                     <label htmlFor="fideNumber">Número fide</label>
                     <input type="number" name="fide_number" id="fideNumber" />
 
-                    <label htmlFor="birthDate">Fecah de nacimiento</label>
+                    <label htmlFor="birthDate">Fecha de nacimiento</label>
                     <input type="date" name="birth_date" id="birthDate" />
 
                     <button type="submit">Agregar</button>
