@@ -3,19 +3,24 @@
 
 mod db;
 mod models;
-mod types;
 mod trf;
-mod util;
+mod types;
+mod utils;
 
 use db::{
     create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
-    select_players, select_tournament, select_games,
+    select_pairings, select_players, select_tournament,
 };
-use models::{Player, Tournament};
+use models::{Pairing, Player, Tournament};
 use rusqlite::Connection;
+use std::{
+    fs::{remove_file, File},
+    io::{BufWriter, Write},
+    path::PathBuf,
+};
 use trf::write_players_partial;
-use std::{path::PathBuf, fs::{File, remove_file}, io::{BufWriter, Write}};
 use types::InvokeErrorBind;
+use utils::{sort_pairings, sort_players_initial};
 
 #[tauri::command]
 async fn pick_tournament_file() -> Option<PathBuf> {
@@ -69,11 +74,13 @@ async fn get_current_round(path: PathBuf) -> Result<Option<u16>, InvokeErrorBind
 #[tauri::command]
 async fn make_pairing(path: PathBuf) -> Result<u16, InvokeErrorBind> {
     let connection = open_not_create(&path)?;
-    let players = select_players(&connection)?;    
+    let mut players = select_players(&connection)?;
     let trf_file_path = PathBuf::from(path.parent().unwrap_or(&path).join("trf"));
-    let mut buff = BufWriter::new(File::create(&trf_file_path)?);
-    let games = select_games(&connection)?;
-    write_players_partial(&mut buff, &players, &games)?;
+    let mut buff = BufWriter::new(File::open(&trf_file_path)?);
+    let mut pairings = select_pairings(&connection)?;
+    sort_players_initial(&mut players);
+    sort_pairings(&mut pairings);
+    write_players_partial(&mut buff, &players, &pairings)?;
     buff.flush()?;
     // remove_file(&trf_file_path)?;
     Ok(2)

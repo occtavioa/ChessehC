@@ -16,7 +16,7 @@ impl From<rusqlite::Error> for InvokeErrorBind {
     }
 }
 
-impl From::<io::Error> for InvokeErrorBind {
+impl From<io::Error> for InvokeErrorBind {
     fn from(value: io::Error) -> Self {
         InvokeErrorBind(value.to_string())
     }
