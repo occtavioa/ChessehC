@@ -47,17 +47,22 @@ pub struct Player {
 //     GM,
 // }
 
+pub struct Pairing {
+    pub number_round: u16,
+    pub kind: PairingKind,
+}
+
 #[derive(Deserialize, Serialize)]
-pub enum Pairing {
+pub enum PairingKind {
     Match {
-        number_round: u16,
+        // number_round: u16,
         white_id: i64,
         black_id: i64,
         white_result: MatchPlayerResult,
         black_result: MatchPlayerResult,
     },
     Bye {
-        number_round: u16,
+        // number_round: u16,
         player_id: i64,
         bye_point: ByePoint,
     },

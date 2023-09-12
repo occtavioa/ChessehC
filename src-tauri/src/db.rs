@@ -1,4 +1,4 @@
-use crate::models::{Pairing, Player, Tournament};
+use crate::models::{PairingKind, Player, Tournament, Pairing};
 use rusqlite::{params, Connection, OpenFlags, Result};
 use std::path::Path;
 
@@ -180,12 +180,14 @@ pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
         "SELECT Round.Number, MatchByRound.* FROM MatchByRound INNER JOIN Round ON Round.Id = MatchByRound.IdRound"
     )?;
     let matches_iter = statement.query_map(params![], |row| {
-        Ok(Pairing::Match {
+        Ok(Pairing {
             number_round: row.get(0)?,
-            white_id: row.get(2)?,
-            black_id: row.get(3)?,
-            white_result: row.get(4)?,
-            black_result: row.get(5)?,
+            kind: PairingKind::Match {
+                white_id: row.get(2)?,
+                black_id: row.get(3)?,
+                white_result: row.get(4)?,
+                black_result: row.get(5)?,
+            }
         })
     })?;
     Ok(matches_iter.map(|m| m.unwrap()).collect())
@@ -196,10 +198,9 @@ pub fn select_byes(connection: &Connection) -> Result<Vec<Pairing>> {
         "SELECT Round.Number, ByeByRound.* FROM ByeByRound INNER JOIN Round ON Round.Id = ByeByRound.IdRound"
     )?;
     let byes_iter = statement.query_map(params![], |row| {
-        Ok(Pairing::Bye {
+        Ok(Pairing {
             number_round: row.get(0)?,
-            player_id: row.get(2)?,
-            bye_point: row.get(3)?,
+            kind: PairingKind::Bye { player_id: row.get(2)?, bye_point: row.get(3)? }
         })
     })?;
     Ok(byes_iter.map(|b| b.unwrap()).collect())

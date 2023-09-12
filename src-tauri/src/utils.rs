@@ -1,16 +1,7 @@
-use crate::models::{Pairing, Player};
+use crate::models::{Player, Pairing};
 
 pub fn sort_pairings(pairings: &mut [Pairing]) {
-    pairings.sort_by(|a, b| match a {
-        Pairing::Bye { number_round, .. } => number_round.cmp(match b {
-            Pairing::Bye { number_round, .. } => number_round,
-            Pairing::Match { number_round, .. } => number_round,
-        }),
-        Pairing::Match { number_round, .. } => number_round.cmp(match b {
-            Pairing::Bye { number_round, .. } => number_round,
-            Pairing::Match { number_round, .. } => number_round,
-        }),
-    });
+    pairings.sort_by(|a, b| a.number_round.cmp(&b.number_round));
 }
 
 pub fn sort_players_initial(players: &mut [Player]) {

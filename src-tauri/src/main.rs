@@ -11,7 +11,7 @@ use db::{
     create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
     select_pairings, select_players, select_tournament,
 };
-use models::{Pairing, Player, Tournament};
+use models::{PairingKind, Player, Tournament};
 use rusqlite::Connection;
 use std::{
     fs::{remove_file, File},

@@ -1,4 +1,4 @@
-use crate::models::{MatchPlayerResult, Pairing, Player};
+use crate::models::{MatchPlayerResult, PairingKind, Player, Pairing};
 use std::{
     fs::File,
     io::{BufWriter, Result, Write},
@@ -27,16 +27,16 @@ pub fn write_players_partial(
                 "",
                 pairings
                     .iter()
-                    .filter(|pairing| match pairing {
-                        Pairing::Bye { player_id, .. } => *player_id == player.id,
-                        Pairing::Match {
+                    .filter(|Pairing { kind, .. }| match kind {
+                        PairingKind::Bye { player_id, .. } => *player_id == player.id,
+                        PairingKind::Match {
                             black_id, white_id, ..
                         } => (*black_id == player.id) || (*white_id == player.id),
                     })
-                    .map(|pairing| match pairing {
-                        Pairing::Bye { bye_point, .. } =>
+                    .map(|Pairing { kind, .. }| match kind {
+                        PairingKind::Bye { bye_point, .. } =>
                             format!("0000 - {}", bye_point.to_string()),
-                        Pairing::Match {
+                        PairingKind::Match {
                             white_id,
                             black_id,
                             white_result,
