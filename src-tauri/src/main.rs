@@ -11,10 +11,10 @@ use db::{
     create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
     select_pairings, select_players, select_tournament,
 };
-use models::{PairingKind, Player, Tournament};
+use models::{Player, Tournament};
 use rusqlite::Connection;
 use std::{
-    fs::{remove_file, File},
+    fs::File,
     io::{BufWriter, Write},
     path::PathBuf,
 };
@@ -48,42 +48,43 @@ async fn create_tournament(tournament: Tournament) -> Result<Option<PathBuf>, In
 
 #[tauri::command]
 async fn get_tournament(path: PathBuf) -> Result<Tournament, InvokeErrorBind> {
-    let connection = open_not_create(&path)?;
+    let connection = open_not_create(&path).await?;
     Ok(select_tournament(&connection)?)
 }
 
 #[tauri::command]
 async fn get_players(path: PathBuf) -> Result<Vec<Player>, InvokeErrorBind> {
-    let connection = open_not_create(&path)?;
+    let connection = open_not_create(&path).await?;
     Ok(select_players(&connection)?)
 }
 
 #[tauri::command]
 async fn create_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
-    let connection = open_not_create(&path)?;
+    let connection = open_not_create(&path).await?;
     insert_player(&connection, &player)?;
     Ok(player)
 }
 
 #[tauri::command]
 async fn get_current_round(path: PathBuf) -> Result<Option<u16>, InvokeErrorBind> {
-    let connection = open_not_create(&path)?;
+    let connection = open_not_create(&path).await?;
     Ok(select_current_round(&connection)?)
 }
 
 #[tauri::command]
 async fn make_pairing(path: PathBuf) -> Result<u16, InvokeErrorBind> {
-    let connection = open_not_create(&path)?;
+    let connection = open_not_create(&path).await?;
     let mut players = select_players(&connection)?;
-    let trf_file_path = PathBuf::from(path.parent().unwrap_or(&path).join("trf"));
-    let mut buff = BufWriter::new(File::open(&trf_file_path)?);
     let mut pairings = select_pairings(&connection)?;
+    let partial_trf_file_path = PathBuf::from(path.parent().unwrap_or(&path).join("trf"));
+    let partial_trf_file = File::create(&partial_trf_file_path)?;
+    let mut buff = BufWriter::new(partial_trf_file);
     sort_players_initial(&mut players);
     sort_pairings(&mut pairings);
     write_players_partial(&mut buff, &players, &pairings)?;
     buff.flush()?;
     // remove_file(&trf_file_path)?;
-    Ok(2)
+    Ok(0)
 }
 
 fn main() {

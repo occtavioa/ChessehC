@@ -1,4 +1,4 @@
-use crate::models::{MatchPlayerResult, PairingKind, Player, Pairing};
+use crate::models::{Pairing, PairingKind, Player, MatchPlayerResult};
 use std::{
     fs::File,
     io::{BufWriter, Result, Write},
@@ -38,7 +38,6 @@ pub fn write_players_partial(
                             format!("0000 - {}", bye_point.to_string()),
                         PairingKind::Match {
                             white_id,
-                            black_id,
                             white_result,
                             black_result,
                             ..
@@ -47,21 +46,13 @@ pub fn write_players_partial(
                                 format!(
                                     "{:>4} w {}",
                                     i + 1,
-                                    match white_result {
-                                        MatchPlayerResult::W => "1",
-                                        MatchPlayerResult::D => "=",
-                                        MatchPlayerResult::L => "0",
-                                    }
+                                    match_player_result_symbol(&white_result)
                                 )
                             } else {
                                 format!(
                                     "{:>4} b {}",
                                     i + 1,
-                                    match black_result {
-                                        MatchPlayerResult::W => "1",
-                                        MatchPlayerResult::D => "=",
-                                        MatchPlayerResult::L => "0",
-                                    }
+                                    match_player_result_symbol(&black_result)
                                 )
                             },
                     })
@@ -72,4 +63,12 @@ pub fn write_players_partial(
         .collect();
     buff.write(players_lines.join("").as_bytes())?;
     Ok(())
+}
+
+fn match_player_result_symbol(mpr: &MatchPlayerResult) -> char {
+    match mpr {
+        MatchPlayerResult::W => '1',
+        MatchPlayerResult::D => '=',
+        MatchPlayerResult::L => '0'
+    }
 }

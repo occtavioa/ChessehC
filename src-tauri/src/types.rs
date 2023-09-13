@@ -1,5 +1,4 @@
 use std::io;
-
 use tauri::InvokeError;
 
 pub struct InvokeErrorBind(String);

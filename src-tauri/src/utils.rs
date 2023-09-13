@@ -1,4 +1,4 @@
-use crate::models::{Player, Pairing};
+use crate::models::{Pairing, Player};
 
 pub fn sort_pairings(pairings: &mut [Pairing]) {
     pairings.sort_by(|a, b| a.number_round.cmp(&b.number_round));
