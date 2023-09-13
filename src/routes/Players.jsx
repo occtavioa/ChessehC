@@ -51,10 +51,9 @@ function Players() {
                     e.preventDefault()
 
                     let player = Object.fromEntries(new FormData(e.target))
+                    player.id = 0
                     player.rating = parseInt(player.rating)
-                    player.fide_number = player.fide_number === "" ? null : player.fide_number
-                    player.title = null
-                    player.points = 0;
+                    player.points = 0.0;
 
                     console.log(player);
                     invoke("create_player", {path: atob(path), player: player})
@@ -65,23 +64,8 @@ function Players() {
                     <label htmlFor="name">Nombre</label>
                     <input type="text" name="name" id="name" required />
 
-                    <label htmlFor="sex">Sexo</label>
-                    <input type="text" name="sex" id="sex" />
-
-                    <label htmlFor="title">Titulo</label>
-                    <input type="text" name="title" id="title" />
-
                     <label htmlFor="rating">Rating</label>
                     <input type="number" name="rating" id="rating" min={0} max={9999} defaultValue={0} />
-
-                    <label htmlFor="fideFederation">Federacion</label>
-                    <input type="number" name="fide_federation" id="fideFederation" />
-
-                    <label htmlFor="fideNumber">Número fide</label>
-                    <input type="number" name="fide_number" id="fideNumber" />
-
-                    <label htmlFor="birthDate">Fecha de nacimiento</label>
-                    <input type="date" name="birth_date" id="birthDate" />
 
                     <button type="submit">Agregar</button>
                 </form>
