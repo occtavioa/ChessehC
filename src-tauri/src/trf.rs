@@ -4,6 +4,10 @@ use std::{
     io::{BufWriter, Result, Write},
 };
 
+pub fn write_configuration(buff: &mut BufWriter<File>, number_rounds: u16) -> Result<usize> {
+    buff.write(format!("XXC white1\rXXR {}", number_rounds).as_bytes())
+}
+
 pub fn write_players_partial(
     buff: &mut BufWriter<File>,
     players: &[Player],
@@ -15,7 +19,7 @@ pub fn write_players_partial(
         .map(|(i, player)| {
             format!(
                 "001 {:>4} {} {:>3} {:>33} {:>4} {:>3} {:>11} {:>10} {:>4} {:>4}  {}\r",
-                i,
+                i + 1,
                 "",
                 "",
                 &player.name,

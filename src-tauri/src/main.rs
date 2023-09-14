@@ -9,7 +9,7 @@ mod utils;
 
 use db::{
     create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
-    select_pairings, select_players, select_tournament,
+    select_pairings, select_players, select_tournament, select_number_rounds,
 };
 use models::{Player, Tournament};
 use rusqlite::Connection;
@@ -18,7 +18,7 @@ use std::{
     io::{BufWriter, Write},
     path::PathBuf,
 };
-use trf::write_players_partial;
+use trf::{write_players_partial, write_configuration};
 use types::InvokeErrorBind;
 use utils::{sort_pairings, sort_players_initial};
 
@@ -76,11 +76,13 @@ async fn make_pairing(path: PathBuf) -> Result<u16, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let mut players = select_players(&connection)?;
     let mut pairings = select_pairings(&connection)?;
+    let number_rounds = select_number_rounds(&connection)?;
     let partial_trf_file_path = PathBuf::from(path.parent().unwrap_or(&path).join("trf"));
     let partial_trf_file = File::create(&partial_trf_file_path)?;
     let mut buff = BufWriter::new(partial_trf_file);
     sort_players_initial(&mut players);
     sort_pairings(&mut pairings);
+    write_configuration(&mut buff, number_rounds)?;
     write_players_partial(&mut buff, &players, &pairings)?;
     buff.flush()?;
     // remove_file(&trf_file_path)?;

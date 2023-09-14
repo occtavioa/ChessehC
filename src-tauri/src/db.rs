@@ -165,3 +165,7 @@ pub fn select_byes(connection: &Connection) -> Result<Vec<Pairing>> {
     })?;
     Ok(byes_iter.map(|b| b.unwrap()).collect())
 }
+
+pub fn select_number_rounds(connection: &Connection) -> Result<u16> {
+    connection.query_row("SELECT NumberRounds FROM Tournament", params![], |row| row.get(0))
+}

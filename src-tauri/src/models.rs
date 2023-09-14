@@ -20,12 +20,13 @@ pub struct Player {
     pub rating: u16,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Pairing {
     pub number_round: u16,
     pub kind: PairingKind,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum PairingKind {
     Match {
         white_id: i64,
@@ -39,12 +40,12 @@ pub enum PairingKind {
     },
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum ByePoint {
     U,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum MatchPlayerResult {
     W,
     D,
@@ -60,7 +61,7 @@ impl ToSql for ByePoint {
 impl FromSql for ByePoint {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> FromSqlResult<Self> {
         match value {
-            rusqlite::types::ValueRef::Text(t) => match ByePoint::from_str(from_utf8(t).unwrap()) {
+            rusqlite::types::ValueRef::Text(t) => match ByePoint::from_str(from_utf8(t).unwrap_or_default()) {
                 Ok(bp) => Ok(bp),
                 Err(_) => Err(FromSqlError::InvalidType),
             },
