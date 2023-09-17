@@ -39,12 +39,13 @@ pub fn create_schema(connection: &Connection) -> Result<()> {
             \"RoundId\" INTEGER,
             \"Points\"  REAL
         );
-        CREATE TABLE \"MatchByRound\" (
+        CREATE TABLE \"GameByRound\" (
             \"RoundId\" INTEGER NOT NULL,
             \"WhiteId\" INTEGER NOT NULL,
             \"BlackId\" INTEGER NOT NULL,
             \"WhiteResult\" TEXT,
-            \"BlackResult\" TEXT
+            \"BlackResult\" TEXT,
+            \"Ongoing\" INTEGER NOT NULL
         );
         CREATE TABLE \"ByeByRound\" (
             \"RoundId\" INTEGER NOT NULL,
@@ -66,10 +67,7 @@ pub fn insert_tournament(tournament: &Tournament, connection: &Connection) -> Re
             NULL
         )
         ",
-        params![
-            &tournament.name,
-            &tournament.number_rounds,
-        ],
+        params![&tournament.name, &tournament.number_rounds,],
     )
 }
 
@@ -112,17 +110,8 @@ pub fn insert_player(connection: &Connection, player: &Player) -> Result<usize> 
             (?2)
         )
         ",
-        params![
-            &player.name,
-            player.rating,
-        ],
+        params![&player.name, player.rating,],
     )
-}
-
-pub fn select_current_round(connection: &Connection) -> Result<Option<u16>> {
-    connection.query_row("SELECT CurrentRound FROM \"Tournament\"", [], |row| {
-        Ok(row.get(0)?)
-    })
 }
 
 pub fn select_pairings(connection: &Connection) -> Result<Vec<Pairing>> {
@@ -134,12 +123,12 @@ pub fn select_pairings(connection: &Connection) -> Result<Vec<Pairing>> {
 
 pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
     let mut statement = connection.prepare(
-        "SELECT Round.Number, MatchByRound.* FROM MatchByRound INNER JOIN Round ON Round.Id = MatchByRound.RoundId"
+        "SELECT Round.Number, GameByRound.* FROM GameByRound INNER JOIN Round ON Round.Id = GameByRound.RoundId"
     )?;
     let matches_iter = statement.query_map(params![], |row| {
         Ok(Pairing {
             number_round: row.get(0)?,
-            kind: PairingKind::Match {
+            kind: PairingKind::Game {
                 white_id: row.get(2)?,
                 black_id: row.get(3)?,
                 white_result: row.get(4)?,
@@ -147,7 +136,10 @@ pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
             },
         })
     })?;
-    Ok(matches_iter.map(|m| m.unwrap()).collect())
+    Ok(matches_iter
+        .filter(|m| m.is_ok())
+        .map(|m| m.unwrap())
+        .collect())
 }
 
 pub fn select_byes(connection: &Connection) -> Result<Vec<Pairing>> {
@@ -163,9 +155,91 @@ pub fn select_byes(connection: &Connection) -> Result<Vec<Pairing>> {
             },
         })
     })?;
-    Ok(byes_iter.map(|b| b.unwrap()).collect())
+    Ok(byes_iter
+        .filter(|b| b.is_ok())
+        .map(|b| b.unwrap())
+        .collect())
 }
 
-pub fn select_number_rounds(connection: &Connection) -> Result<u16> {
-    connection.query_row("SELECT NumberRounds FROM Tournament", params![], |row| row.get(0))
+pub fn insert_pairing(pairing: &Pairing, connection: &Connection) -> Result<usize> {
+    match &pairing.kind {
+        PairingKind::Bye {
+            player_id,
+            bye_point,
+        } => connection.execute(
+            "INSERT INTO ByeByRound VALUES
+            (
+                (SELECT Id FROM Round WHERE Number = (?1) LIMIT 1),
+                (?2),
+                (?3)
+            )
+            ",
+            params![pairing.number_round, player_id, bye_point],
+        ),
+        PairingKind::Game {
+            white_id,
+            black_id,
+            white_result,
+            black_result,
+        } => connection.execute(
+            "INSERT INTO GameByRound VALUES
+            (
+                (SELECT Id FROM Round WHERE Number = (?1) LIMIT 1),
+                (?2),
+                (?3),
+                (?4),
+                (?5),
+                TRUE
+            )",
+            params![
+                pairing.number_round,
+                white_id,
+                black_id,
+                white_result,
+                black_result
+            ],
+        ),
+    }
+}
+
+pub fn update_current_round(next_round: u16, connection: &Connection) -> Result<()> {
+    connection.execute(
+        "UPDATE Tournament SET CurrentRound = (?1)",
+        params![next_round],
+    )?;
+    Ok(())
+}
+
+pub fn insert_round(number_round: u16, connection: &Connection) -> Result<()> {
+    connection.execute(
+        "INSERT INTO Round VALUES
+        (
+            NULL,
+            (?1),
+            NULL
+        )",
+        params![number_round],
+    )?;
+    Ok(())
+}
+
+pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
+    let mut stmnt = connection.prepare(
+        "SELECT Round.Number, GameByRound.* FROM GameByRound INNER JOIN Round ON GameByRound.RoundId=Round.Id WHERE GameByRound.Ongoing=TRUE"
+    )?;
+    let games_iter = stmnt.query_map(params![], |row| {
+        Ok(Pairing {
+            number_round: row.get(0)?,
+            kind: PairingKind::Game {
+                white_id: row.get(2)?,
+                black_id: row.get(3)?,
+                white_result: row.get(4)?,
+                black_result: row.get(5)?,
+            },
+        })
+    })?;
+    Ok(games_iter
+        .filter(|g| g.is_ok())
+        .map(|g| g.unwrap())
+        .collect())
 }

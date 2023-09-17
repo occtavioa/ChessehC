@@ -1,11 +1,17 @@
 use std::io;
 use tauri::InvokeError;
 
-pub struct InvokeErrorBind(String);
+pub struct InvokeErrorBind(pub String);
 
 impl Into<InvokeError> for InvokeErrorBind {
     fn into(self) -> InvokeError {
         self.0.to_string().into()
+    }
+}
+
+impl From<tauri::api::Error> for InvokeErrorBind {
+    fn from(value: tauri::api::Error) -> Self {
+        InvokeErrorBind(value.to_string())
     }
 }
 

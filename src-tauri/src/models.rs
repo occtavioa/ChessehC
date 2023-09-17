@@ -1,9 +1,9 @@
-use std::str::{from_utf8, FromStr};
 use rusqlite::{
     types::{FromSql, FromSqlError, FromSqlResult},
     ToSql,
 };
 use serde::{Deserialize, Serialize};
+use std::str::{from_utf8, FromStr};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Tournament {
@@ -28,11 +28,11 @@ pub struct Pairing {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PairingKind {
-    Match {
+    Game {
         white_id: i64,
         black_id: i64,
-        white_result: MatchPlayerResult,
-        black_result: MatchPlayerResult,
+        white_result: Option<GamePlayerResult>,
+        black_result: Option<GamePlayerResult>,
     },
     Bye {
         player_id: i64,
@@ -46,7 +46,7 @@ pub enum ByePoint {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum MatchPlayerResult {
+pub enum GamePlayerResult {
     W,
     D,
     L,
@@ -61,10 +61,12 @@ impl ToSql for ByePoint {
 impl FromSql for ByePoint {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> FromSqlResult<Self> {
         match value {
-            rusqlite::types::ValueRef::Text(t) => match ByePoint::from_str(from_utf8(t).unwrap_or_default()) {
-                Ok(bp) => Ok(bp),
-                Err(_) => Err(FromSqlError::InvalidType),
-            },
+            rusqlite::types::ValueRef::Text(t) => {
+                match ByePoint::from_str(from_utf8(t).unwrap_or_default()) {
+                    Ok(bp) => Ok(bp),
+                    Err(_) => Err(FromSqlError::InvalidType),
+                }
+            }
             _ => Err(FromSqlError::InvalidType),
         }
     }
@@ -89,17 +91,17 @@ impl FromStr for ByePoint {
     }
 }
 
-impl ToSql for MatchPlayerResult {
+impl ToSql for GamePlayerResult {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         Ok(self.to_string().into())
     }
 }
 
-impl FromSql for MatchPlayerResult {
+impl FromSql for GamePlayerResult {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> FromSqlResult<Self> {
         match value {
             rusqlite::types::ValueRef::Text(t) => {
-                match MatchPlayerResult::from_str(from_utf8(t).unwrap()) {
+                match GamePlayerResult::from_str(from_utf8(t).unwrap()) {
                     Ok(mpr) => Ok(mpr),
                     Err(_) => Err(FromSqlError::InvalidType),
                 }
@@ -109,7 +111,7 @@ impl FromSql for MatchPlayerResult {
     }
 }
 
-impl ToString for MatchPlayerResult {
+impl ToString for GamePlayerResult {
     fn to_string(&self) -> String {
         match self {
             Self::W => String::from("W"),
@@ -119,7 +121,7 @@ impl ToString for MatchPlayerResult {
     }
 }
 
-impl FromStr for MatchPlayerResult {
+impl FromStr for GamePlayerResult {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

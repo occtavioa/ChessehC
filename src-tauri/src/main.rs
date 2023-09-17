@@ -3,22 +3,33 @@
 
 mod db;
 mod models;
+mod pairing;
 mod trf;
 mod types;
 mod utils;
 
+const BBP_INPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "input");
+const OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "output");
+const BBP_PAIRINGS_FOLDER_PATH: (BaseDirectory, &str) =
+    (BaseDirectory::AppLocalData, "bbpPairings-v5.0.1");
+
 use db::{
-    create_schema, insert_player, insert_tournament, open_not_create, select_current_round,
-    select_pairings, select_players, select_tournament, select_number_rounds,
+    create_schema, insert_pairing, insert_player, insert_round, insert_tournament, open_not_create,
+    select_ongoing_games, select_pairings, select_players, select_tournament, update_current_round,
 };
-use models::{Player, Tournament};
+use models::{ByePoint, Pairing, PairingKind, Player, Tournament};
+use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
-    fs::File,
+    fs::{File, OpenOptions},
     io::{BufWriter, Write},
     path::PathBuf,
 };
-use trf::{write_players_partial, write_configuration};
+use tauri::{
+    api::path::{resolve_path, BaseDirectory},
+    AppHandle, Env, Manager,
+};
+use trf::{write_configuration, write_players_partial};
 use types::InvokeErrorBind;
 use utils::{sort_pairings, sort_players_initial};
 
@@ -68,29 +79,133 @@ async fn create_player(path: PathBuf, player: Player) -> Result<Player, InvokeEr
 #[tauri::command]
 async fn get_current_round(path: PathBuf) -> Result<Option<u16>, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
-    Ok(select_current_round(&connection)?)
+    Ok(select_tournament(&connection)?.current_round)
 }
 
 #[tauri::command]
-async fn make_pairing(path: PathBuf) -> Result<u16, InvokeErrorBind> {
+async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
+    if !select_ongoing_games(&connection)?.is_empty() {
+        return Err(InvokeErrorBind(String::from("Ongoing round")));
+    }
+    let bbp_input_file_path = get_bbp_input_file_path(&app)?;
+    if !bbp_input_file_path.exists() {
+        return Err(InvokeErrorBind(String::from("bbpPairings not found")));
+    }
+    let output_file_path = get_output_file_path(&app)?;
+    let bbp_exec_path = get_bbp_exec_path(&app)?;
+
     let mut players = select_players(&connection)?;
+    if players.len() < 2 {
+        return Err(InvokeErrorBind(String::from("Not enough players")));
+    }
     let mut pairings = select_pairings(&connection)?;
-    let number_rounds = select_number_rounds(&connection)?;
-    let partial_trf_file_path = PathBuf::from(path.parent().unwrap_or(&path).join("trf"));
-    let partial_trf_file = File::create(&partial_trf_file_path)?;
-    let mut buff = BufWriter::new(partial_trf_file);
+    let Tournament {
+        number_rounds,
+        current_round,
+        ..
+    } = select_tournament(&connection)?;
+
+    let bbp_input_file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&bbp_input_file_path)?;
+    let mut buff = BufWriter::new(bbp_input_file);
+
     sort_players_initial(&mut players);
     sort_pairings(&mut pairings);
+
     write_configuration(&mut buff, number_rounds)?;
     write_players_partial(&mut buff, &players, &pairings)?;
     buff.flush()?;
+    execute_bbp(&bbp_input_file_path, &bbp_exec_path, &output_file_path).await?;
+
+    let mut output_file = File::open(&output_file_path)?;
+    let id_pairs = parse_bbp_output(&mut output_file)?;
+
+    let current_round = current_round.unwrap_or_default() + 1;
+    update_current_round(current_round, &connection)?;
+    insert_round(current_round, &connection)?;
+
+    let pairings: Vec<Pairing> = id_pairs
+        .iter()
+        .map(|ip| Pairing {
+            number_round: current_round,
+            kind: match ip.1 == 0 {
+                true => PairingKind::Bye {
+                    player_id: players.get(usize::from(ip.0 - 1)).unwrap().id,
+                    bye_point: ByePoint::U,
+                },
+                false => PairingKind::Game {
+                    white_id: players.get(usize::from(ip.0 - 1)).unwrap().id,
+                    black_id: players.get(usize::from(ip.1 - 1)).unwrap().id,
+                    white_result: None,
+                    black_result: None,
+                },
+            },
+        })
+        .collect();
+    for pairing in pairings {
+        insert_pairing(&pairing, &connection)?;
+    }
     // remove_file(&trf_file_path)?;
-    Ok(0)
+    Ok(current_round)
+}
+
+fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+    resolve_path(
+        &app.config(),
+        &app.package_info(),
+        &Env::default(),
+        BBP_INPUT_FILE_PATH.1,
+        Some(BBP_INPUT_FILE_PATH.0),
+    )
+}
+
+fn get_output_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+    resolve_path(
+        &app.config(),
+        &app.package_info(),
+        &Env::default(),
+        OUTPUT_FILE_PATH.1,
+        Some(OUTPUT_FILE_PATH.0),
+    )
+}
+
+pub fn get_bbp_exec_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+    let mut exec_path = resolve_path(
+        &app.config(),
+        &app.package_info(),
+        &Env::default(),
+        BBP_PAIRINGS_FOLDER_PATH.1,
+        Some(BBP_PAIRINGS_FOLDER_PATH.0),
+    )?;
+    exec_path.push("bbpPairings");
+    exec_path.set_extension("exe");
+    Ok(exec_path)
 }
 
 fn main() {
     tauri::Builder::default()
+        .setup(|app| {
+            let output_file_path = get_output_file_path(&app.handle())?;
+            if !output_file_path.exists() {
+                File::create(&output_file_path)?;
+            }
+            let bbp_input_file_path = get_bbp_input_file_path(&app.app_handle())?;
+            if !bbp_input_file_path.exists() {
+                File::create(&bbp_input_file_path)?;
+            }
+            let bbp_exec_path = get_bbp_exec_path(&app.app_handle())?;
+            if !bbp_exec_path.exists() {
+                tauri::api::dialog::message(
+                    app.get_window("main").as_ref(),
+                    "bbpPairings not found",
+                    format!("{:?} not found", bbp_exec_path.to_str().unwrap()),
+                );
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             create_tournament,
             pick_tournament_file,
