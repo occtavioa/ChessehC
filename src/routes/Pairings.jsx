@@ -10,6 +10,7 @@ function Pairings() {
         invoke("get_pairings_by_round", {path: atob(path), round: parseInt(round)})
             .then((pairings) => {
                 setPairings(pairings)
+                console.log(pairings);
             })
             .catch((error) => {console.error(error);})
     }, [round])
@@ -41,7 +42,21 @@ function Pairings() {
                                             <td>{p.kind.Game.white_player.name}</td>
                                             <td>{p.kind.Game.black_player.name}</td>
                                             <td>
-                                                {p.kind.Game.white_result} - {p.kind.Game.black_result}
+                                                {
+                                                    p.kind.Game.white_result && p.kind.Game.black_result ?
+                                                        <span>{p.kind.Game.white_result} - {p.kind.Game.black_result}</span> :
+                                                        <form onSubmit={(e) => {
+                                                            e.preventDefault()
+                                                        }}>
+                                                            <select name="game_result">
+                                                                <option value={""}>Elegir resultado</option>
+                                                                <option value={["W", "L"]}>1 - 0</option>
+                                                                <option value={["L", "W"]}>0 - 1</option>
+                                                                <option value={["D", "D"]}>1/2 - 1/2</option>
+                                                            </select>
+                                                            <button type="submit">Set</button>
+                                                        </form>
+                                                }
                                             </td>
                                         </> :
                                         <>
