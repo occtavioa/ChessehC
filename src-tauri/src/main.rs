@@ -16,7 +16,7 @@ const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) =
 use db::{
     create_schema, insert_pairing, insert_player, insert_round, insert_tournament, open_not_create,
     select_ongoing_games, select_pairings, select_pairings_by_round, select_players,
-    select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round
+    select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round, update_game_result
 };
 use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo, GamePlayerResult};
 use pairing::{execute_bbp, parse_bbp_output};
@@ -194,8 +194,10 @@ async fn get_standings_by_round(path: PathBuf, round: u16) -> Result<Vec<Player>
 }
 
 #[tauri::command]
-async fn set_game_result(id_game: i64, white_result: GamePlayerResult, black_result: GamePlayerResult) -> Result<(), InvokeErrorBind> {
-    todo!()
+async fn set_game_result(id_game: i64, white_result: GamePlayerResult, black_result: GamePlayerResult, path: PathBuf) -> Result<(), InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    update_game_result(id_game, &white_result, &black_result, &connection)?;
+    Ok(())
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -261,7 +263,8 @@ fn main() {
             get_current_round,
             make_pairing,
             get_pairings_by_round,
-            get_standings_by_round
+            get_standings_by_round,
+            set_game_result
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

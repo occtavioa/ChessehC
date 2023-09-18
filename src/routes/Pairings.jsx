@@ -45,8 +45,19 @@ function Pairings() {
                                                 {
                                                     p.kind.Game.white_result && p.kind.Game.black_result ?
                                                         <span>{p.kind.Game.white_result} - {p.kind.Game.black_result}</span> :
-                                                        <form onSubmit={(e) => {
+                                                        <form onSubmit={async (e) => {
                                                             e.preventDefault()
+                                                            let {game_result} = Object.fromEntries(new FormData(e.target))
+                                                            let [white_result, black_result] = game_result.split(',');
+                                                            console.log(white_result, black_result);
+                                                            invoke("set_game_result", {idGame: p.kind.Game.id, whiteResult: white_result, blackResult: black_result, path: atob(path)})
+                                                                .then(() => {
+                                                                    p.kind.Game.white_result = white_result
+                                                                    p.kind.Game.black_result = black_result
+                                                                })
+                                                                .catch((error) => {
+                                                                    console.error(error);
+                                                                })
                                                         }}>
                                                             <select name="game_result">
                                                                 <option value={""}>Elegir resultado</option>
