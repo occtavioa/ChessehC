@@ -332,3 +332,30 @@ pub fn select_last_inserted_player(connection: &Connection) -> Result<Player> {
         Ok(Player { id: row.get(0)?, name: row.get(1)?, points: row.get(2)?, rating: row.get(3)? })
     )
 }
+
+pub fn insert_player_state_by_round(player: &Player, number_round: u16, connection: &Connection) -> Result<usize> {
+    connection.execute(
+        "
+        INSERT INTO PlayerStateByRound VALUES
+        (
+            (?1),
+            (SELECT Id FROM Round WHERE Number=(?2) LIMIT 1),
+            (?3)
+        )
+        ",
+        params![player.id, number_round, player.points]
+    )
+}
+
+pub fn select_players_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Player>> {
+    let mut statement = connection.prepare(
+        "
+        SELECT PlayerStateByRound.Points, Player.*
+        FROM PlayerStateByRound
+        INNER JOIN Player ON PlayerStateByRound.PlayerId = Player.Id
+        WHERE PlayerStateByRound.RoundId = (SELECT Id FROM Round WHERE Number = (?1))
+        "
+    )?;
+    let players_iter = statement.query_map(params![number_round], |row| Ok(Player {id: row.get(1)?, name: row.get(2)?, points: row.get(0)?, rating: row.get(4)?}))?;
+    Ok(players_iter.filter(|p| p.is_ok()).map(|p| p.unwrap()).collect())
+}
