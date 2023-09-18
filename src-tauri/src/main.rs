@@ -15,9 +15,10 @@ const BBP_PAIRINGS_FOLDER_PATH: (BaseDirectory, &str) =
 
 use db::{
     create_schema, insert_pairing, insert_player, insert_round, insert_tournament, open_not_create,
-    select_ongoing_games, select_pairings, select_players, select_tournament, update_current_round,
+    select_ongoing_games, select_pairings, select_pairings_by_round, select_players,
+    select_tournament, update_current_round, select_last_inserted_player
 };
-use models::{ByePoint, Pairing, PairingKind, Player, Tournament};
+use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
@@ -73,6 +74,7 @@ async fn get_players(path: PathBuf) -> Result<Vec<Player>, InvokeErrorBind> {
 async fn create_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     insert_player(&connection, &player)?;
+    let player = select_last_inserted_player(&connection)?;
     Ok(player)
 }
 
@@ -115,6 +117,8 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     sort_players_initial(&mut players);
     sort_pairings(&mut pairings);
 
+    let players = players;
+    
     write_configuration(&mut buff, number_rounds)?;
     write_players_partial(&mut buff, &players, &pairings)?;
     buff.flush()?;
@@ -124,32 +128,40 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     let id_pairs = parse_bbp_output(&mut output_file)?;
 
     let current_round = current_round.unwrap_or_default() + 1;
-    update_current_round(current_round, &connection)?;
-    insert_round(current_round, &connection)?;
 
     let pairings: Vec<Pairing> = id_pairs
         .iter()
         .map(|ip| Pairing {
             number_round: current_round,
             kind: match ip.1 == 0 {
-                true => PairingKind::Bye {
-                    player_id: players.get(usize::from(ip.0 - 1)).unwrap().id,
+                true => PairingKind::Bye(ByeInfo {
+                    player: players.get(usize::from(ip.0 - 1)).unwrap().clone(),
                     bye_point: ByePoint::U,
-                },
-                false => PairingKind::Game {
-                    white_id: players.get(usize::from(ip.0 - 1)).unwrap().id,
-                    black_id: players.get(usize::from(ip.1 - 1)).unwrap().id,
+                }),
+                false => PairingKind::Game(GameInfo {
+                    white_player: players.get(usize::from(ip.0 - 1)).unwrap().clone(),
+                    black_player: players.get(usize::from(ip.1 - 1)).unwrap().clone(),
                     white_result: None,
                     black_result: None,
-                },
+                }),
             },
         })
         .collect();
+
+    update_current_round(current_round, &connection)?;
+    insert_round(current_round, &connection)?;
+
     for pairing in pairings {
         insert_pairing(&pairing, &connection)?;
     }
-    // remove_file(&trf_file_path)?;
     Ok(current_round)
+}
+
+#[tauri::command]
+async fn get_pairings_by_round(path: PathBuf, round: u16) -> Result<Vec<Pairing>, InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let pairings = select_pairings_by_round(round, &connection)?;
+    Ok(pairings)
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -213,7 +225,8 @@ fn main() {
             get_players,
             create_player,
             get_current_round,
-            make_pairing
+            make_pairing,
+            get_pairings_by_round
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

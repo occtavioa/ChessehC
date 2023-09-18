@@ -12,13 +12,13 @@ pub struct Tournament {
     pub current_round: Option<u16>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
 pub struct Player {
     pub id: i64,
     pub name: String,
     pub points: f64,
     pub rating: u16,
-}
+}   
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Pairing {
@@ -28,16 +28,22 @@ pub struct Pairing {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PairingKind {
-    Game {
-        white_id: i64,
-        black_id: i64,
-        white_result: Option<GamePlayerResult>,
-        black_result: Option<GamePlayerResult>,
-    },
-    Bye {
-        player_id: i64,
-        bye_point: ByePoint,
-    },
+    Game (GameInfo),
+    Bye (ByeInfo),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GameInfo {
+    pub white_player: Player,
+    pub black_player: Player,
+    pub white_result: Option<GamePlayerResult>,
+    pub black_result: Option<GamePlayerResult>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ByeInfo {
+    pub player: Player,
+    pub bye_point: ByePoint,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
