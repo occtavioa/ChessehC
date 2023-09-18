@@ -9,8 +9,8 @@ mod types;
 mod utils;
 
 const BBP_INPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "input");
-const OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "output");
-const BBP_PAIRINGS_FOLDER_PATH: (BaseDirectory, &str) =
+const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "output");
+const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) =
     (BaseDirectory::AppLocalData, "bbpPairings-v5.0.1");
 
 use db::{
@@ -179,18 +179,18 @@ fn get_output_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
         &app.config(),
         &app.package_info(),
         &Env::default(),
-        OUTPUT_FILE_PATH.1,
-        Some(OUTPUT_FILE_PATH.0),
+        BBP_OUTPUT_FILE_PATH.1,
+        Some(BBP_OUTPUT_FILE_PATH.0),
     )
 }
 
-pub fn get_bbp_exec_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+fn get_bbp_exec_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
     let mut exec_path = resolve_path(
         &app.config(),
         &app.package_info(),
         &Env::default(),
-        BBP_PAIRINGS_FOLDER_PATH.1,
-        Some(BBP_PAIRINGS_FOLDER_PATH.0),
+        BBP_PAIRINGS_DIR_PATH.1,
+        Some(BBP_PAIRINGS_DIR_PATH.0),
     )?;
     exec_path.push("bbpPairings");
     exec_path.set_extension("exe");

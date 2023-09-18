@@ -114,7 +114,7 @@ pub fn insert_player(connection: &Connection, player: &Player) -> Result<usize> 
     )
 }
 
-pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
+pub fn select_games(connection: &Connection) -> Result<Vec<Pairing>> {
     let mut statement = connection.prepare(
         "
         SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult
@@ -124,7 +124,7 @@ pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
         INNER JOIN Player AS Black ON Black.Id = GameByRound.BlackId
         "
     )?;
-    let matches_iter = statement.query_map(params![], |row| {
+    let games_iter = statement.query_map(params![], |row| {
         Ok(Pairing {
             number_round: row.get(0)?,
             kind: PairingKind::Game(GameInfo {
@@ -135,7 +135,7 @@ pub fn select_matches(connection: &Connection) -> Result<Vec<Pairing>> {
             }),
         })
     })?;
-    Ok(matches_iter
+    Ok(games_iter
         .filter(|m| m.is_ok())
         .map(|m| m.unwrap())
         .collect())
@@ -209,10 +209,10 @@ pub fn insert_pairing(pairing: &Pairing, connection: &Connection) -> Result<usiz
 }
 
 pub fn select_pairings(connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut matches = select_matches(&connection)?;
+    let mut games = select_games(&connection)?;
     let byes = select_byes(&connection)?;
-    matches.extend(byes);
-    Ok(matches)
+    games.extend(byes);
+    Ok(games)
 }
 
 pub fn update_current_round(next_round: u16, connection: &Connection) -> Result<()> {
@@ -264,7 +264,7 @@ pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
         .collect())
 }
 
-pub fn select_matches_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Pairing>> {
+pub fn select_games_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Pairing>> {
     let mut statement = connection.prepare(
         "
         SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult
@@ -274,7 +274,7 @@ pub fn select_matches_by_round(number_round: u16, connection: &Connection) -> Re
         INNER JOIN Player AS Black ON Black.Id = GameByRound.BlackId
         WHERE Round.Number=(?1)"
     )?;
-    let matches_iter = statement.query_map(params![number_round], |row| {
+    let games_iter = statement.query_map(params![number_round], |row| {
         Ok(Pairing {
             number_round: row.get(0)?,
             kind: PairingKind::Game(GameInfo {
@@ -285,7 +285,7 @@ pub fn select_matches_by_round(number_round: u16, connection: &Connection) -> Re
             }),
         })
     })?;
-    Ok(matches_iter
+    Ok(games_iter
         .filter(|m| m.is_ok())
         .map(|m| m.unwrap())
         .collect())
@@ -320,10 +320,10 @@ pub fn select_pairings_by_round(
     number_round: u16,
     connection: &Connection,
 ) -> Result<Vec<Pairing>> {
-    let mut matches = select_matches_by_round(number_round, &connection)?;
+    let mut games = select_games_by_round(number_round, &connection)?;
     let byes = select_byes_by_round(number_round, &connection)?;
-    matches.extend(byes);
-    Ok(matches)
+    games.extend(byes);
+    Ok(games)
 }
 
 pub fn select_last_inserted_player(connection: &Connection) -> Result<Player> {

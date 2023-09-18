@@ -12,7 +12,7 @@ pub struct Tournament {
     pub current_round: Option<u16>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Player {
     pub id: i64,
     pub name: String,
