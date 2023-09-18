@@ -18,7 +18,7 @@ use db::{
     select_ongoing_games, select_pairings, select_pairings_by_round, select_players,
     select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round
 };
-use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo};
+use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo, GamePlayerResult};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
@@ -145,6 +145,7 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
                     bye_point: ByePoint::U,
                 }),
                 false => PairingKind::Game(GameInfo {
+                    id: 0,
                     white_player: players.get(usize::from(ip.0 - 1)).unwrap().clone(),
                     black_player: players.get(usize::from(ip.1 - 1)).unwrap().clone(),
                     white_result: None,
@@ -190,6 +191,11 @@ async fn get_standings_by_round(path: PathBuf, round: u16) -> Result<Vec<Player>
     let mut players = select_players_by_round(round, &connection)?;
     sort_players_rating(&mut players);
     Ok(players)
+}
+
+#[tauri::command]
+async fn set_game_result(id_game: i64, white_result: GamePlayerResult, black_result: GamePlayerResult) -> Result<(), InvokeErrorBind> {
+    todo!()
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {

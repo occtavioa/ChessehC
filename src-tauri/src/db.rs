@@ -1,4 +1,4 @@
-use crate::models::{Pairing, PairingKind, Player, Tournament, GameInfo, ByeInfo};
+use crate::models::{Pairing, PairingKind, Player, Tournament, GameInfo, ByeInfo, GamePlayerResult};
 use rusqlite::{params, Connection, OpenFlags, Result};
 use std::path::Path;
 
@@ -40,12 +40,14 @@ pub fn create_schema(connection: &Connection) -> Result<()> {
             \"Points\"  REAL
         );
         CREATE TABLE \"GameByRound\" (
+            \"Id\"  INTEGER NOT NULL,
             \"RoundId\" INTEGER NOT NULL,
             \"WhiteId\" INTEGER NOT NULL,
             \"BlackId\" INTEGER NOT NULL,
             \"WhiteResult\" TEXT,
             \"BlackResult\" TEXT,
-            \"Ongoing\" INTEGER NOT NULL
+            \"Ongoing\" INTEGER NOT NULL,
+            PRIMARY KEY (\"Id\")
         );
         CREATE TABLE \"ByeByRound\" (
             \"RoundId\" INTEGER NOT NULL,
@@ -117,7 +119,7 @@ pub fn insert_player(connection: &Connection, player: &Player) -> Result<usize> 
 pub fn select_games(connection: &Connection) -> Result<Vec<Pairing>> {
     let mut statement = connection.prepare(
         "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult
+        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
         FROM GameByRound
         INNER JOIN Round ON Round.Id = GameByRound.RoundId
         INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
@@ -128,6 +130,7 @@ pub fn select_games(connection: &Connection) -> Result<Vec<Pairing>> {
         Ok(Pairing {
             number_round: row.get(0)?,
             kind: PairingKind::Game(GameInfo {
+                id: row.get(11)?,
                 white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
                 black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
                 white_result: row.get(9)?,
@@ -186,10 +189,12 @@ pub fn insert_pairing(pairing: &Pairing, connection: &Connection) -> Result<usiz
             black_player,
             white_result,
             black_result,
+            ..
         }) => connection.execute(
             "
             INSERT INTO GameByRound VALUES
             (
+                NULL,
                 (SELECT Id FROM Round WHERE Number = (?1) LIMIT 1),
                 (?2),
                 (?3),
@@ -239,7 +244,7 @@ pub fn insert_round(number_round: u16, connection: &Connection) -> Result<()> {
 pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
     let mut stmnt = connection.prepare(
         "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult
+        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
         FROM GameByRound
         INNER JOIN Round ON GameByRound.RoundId=Round.Id
         INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
@@ -251,6 +256,7 @@ pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
         Ok(Pairing {
             number_round: row.get(0)?,
             kind: PairingKind::Game(GameInfo {
+                id: row.get(11)?,
                 white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
                 black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
                 white_result: row.get(9)?,
@@ -267,7 +273,7 @@ pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
 pub fn select_games_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Pairing>> {
     let mut statement = connection.prepare(
         "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult
+        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
         FROM GameByRound
         INNER JOIN Round ON GameByRound.RoundId=Round.Id
         INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
@@ -278,6 +284,7 @@ pub fn select_games_by_round(number_round: u16, connection: &Connection) -> Resu
         Ok(Pairing {
             number_round: row.get(0)?,
             kind: PairingKind::Game(GameInfo {
+                id: row.get(11)?,
                 white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
                 black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
                 white_result: row.get(9)?,
@@ -358,4 +365,13 @@ pub fn select_players_by_round(number_round: u16, connection: &Connection) -> Re
     )?;
     let players_iter = statement.query_map(params![number_round], |row| Ok(Player {id: row.get(1)?, name: row.get(2)?, points: row.get(0)?, rating: row.get(4)?}))?;
     Ok(players_iter.filter(|p| p.is_ok()).map(|p| p.unwrap()).collect())
+}
+
+pub fn update_game_result(id_game: i64, white_result: &GamePlayerResult, black_result: &GamePlayerResult, connection: &Connection) -> Result<usize> {
+    connection.execute(
+        "
+            UPDATE GameByRound SET WhiteResult = (?1), BlackResult = (?2) WHERE Id=(?3)
+        ",
+        params![white_result, black_result, id_game]
+    )
 }

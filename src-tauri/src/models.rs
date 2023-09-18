@@ -34,6 +34,7 @@ pub enum PairingKind {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GameInfo {
+    pub id: i64,
     pub white_player: Player,
     pub black_player: Player,
     pub white_result: Option<GamePlayerResult>,

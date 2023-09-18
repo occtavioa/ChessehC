@@ -45,6 +45,7 @@ pub fn write_players_partial(
                             black_player,
                             white_result,
                             black_result,
+                            ..
                         }) =>
                             if white_player.id == p.id {
                                 format!(
