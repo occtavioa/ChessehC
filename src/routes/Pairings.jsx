@@ -5,12 +5,8 @@ import { useParams } from "react-router"
 function Pairings() {
     const {path, round} = useParams()
     const [pairings, setPairings] = useState([])
-    const tbodyRef = useRef(null)
 
     useEffect(() => {
-        if(tbodyRef === null) {
-            return
-        }
         invoke("get_pairings_by_round", {path: atob(path), round: parseInt(round)})
             .then((pairings) => {
                 setPairings(pairings)
@@ -35,7 +31,7 @@ function Pairings() {
                         </th>
                     </tr>
                 </thead>
-                <tbody ref={tbodyRef}>
+                <tbody>
                     {
                         pairings.map((p, i) => 
                             <tr key={i}>
@@ -45,7 +41,7 @@ function Pairings() {
                                             <td>{p.kind.Game.white_player.name}</td>
                                             <td>{p.kind.Game.black_player.name}</td>
                                             <td>
-                                                {p.kind.Game.white_result} - {p.kind.Game.white_result}
+                                                {p.kind.Game.white_result} - {p.kind.Game.black_result}
                                             </td>
                                         </> :
                                         <>
