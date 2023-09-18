@@ -73,8 +73,13 @@ async fn get_players(path: PathBuf) -> Result<Vec<Player>, InvokeErrorBind> {
 #[tauri::command]
 async fn create_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
+    let tournament = select_tournament(&connection)?;
     insert_player(&connection, &player)?;
     let player = select_last_inserted_player(&connection)?;
+    (1..=tournament.current_round.unwrap_or_default()).for_each(|r| {
+        let bye = Pairing {number_round: r, kind: PairingKind::Bye(ByeInfo { player: player.clone(), bye_point: ByePoint::Z })};
+        insert_pairing(&bye, &connection);
+    });
     Ok(player)
 }
 
@@ -87,15 +92,16 @@ async fn get_current_round(path: PathBuf) -> Result<Option<u16>, InvokeErrorBind
 #[tauri::command]
 async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
-    if !select_ongoing_games(&connection)?.is_empty() {
-        return Err(InvokeErrorBind(String::from("Ongoing round")));
-    }
     let bbp_input_file_path = get_bbp_input_file_path(&app)?;
     if !bbp_input_file_path.exists() {
         return Err(InvokeErrorBind(String::from("bbpPairings not found")));
     }
     let output_file_path = get_output_file_path(&app)?;
     let bbp_exec_path = get_bbp_exec_path(&app)?;
+
+    if !select_ongoing_games(&connection)?.is_empty() {
+        return Err(InvokeErrorBind(String::from("Ongoing round")));
+    }
 
     let mut players = select_players(&connection)?;
     if players.len() < 2 {

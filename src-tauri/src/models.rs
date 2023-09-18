@@ -49,6 +49,7 @@ pub struct ByeInfo {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ByePoint {
     U,
+    Z,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,6 +83,7 @@ impl ToString for ByePoint {
     fn to_string(&self) -> String {
         match self {
             Self::U => String::from("U"),
+            Self::Z => String::from("Z"),
         }
     }
 }
@@ -92,6 +94,7 @@ impl FromStr for ByePoint {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "U" => Ok(Self::U),
+            "Z" => Ok(Self::Z),
             _ => Err(String::from("Invalid")),
         }
     }
