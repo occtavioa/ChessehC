@@ -1,17 +1,17 @@
 import { invoke } from "@tauri-apps/api";
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 
 function Players() {
     const {path} = useParams()
     const formDialogRef = useRef(null);
-    const playersTableRef = useRef(null);
+    const [players, setPlayers] = useState([])
     const navigate = useNavigate()
 
     useEffect(() => {
         invoke("get_players", {path: atob(path)})
             .then((players) => {
-                console.log(players);
+                setPlayers(players)
             })
             .catch((error) => {
                 console.error(error);
@@ -30,15 +30,23 @@ function Players() {
             <table>
                 <thead>
                     <tr>
+                        <th>Id</th>
                         <th>Nombre</th>
-                        <th>Título</th>
                         <th>Rating</th>
-                        <th>Federación</th>
-                        <th>Número FIDE</th>
-                        <th>Fecha de nacimiento</th>
+                        <th>Puntos</th>
                     </tr>
                 </thead>
-                <tbody ref={playersTableRef}>
+                <tbody>
+                    {
+                        players.map((p, i) => 
+                            <tr key={i}>
+                                <td>{p.id}</td>
+                                <td>{p.name}</td>
+                                <td>{p.rating}</td>
+                                <td>{p.points}</td>
+                            </tr>
+                        )
+                    }
                 </tbody>
             </table>
 
