@@ -370,8 +370,71 @@ pub fn select_players_by_round(number_round: u16, connection: &Connection) -> Re
 pub fn update_game_result(id_game: i64, white_result: &GamePlayerResult, black_result: &GamePlayerResult, connection: &Connection) -> Result<usize> {
     connection.execute(
         "
-            UPDATE GameByRound SET WhiteResult = (?1), BlackResult = (?2) WHERE Id=(?3)
+            UPDATE GameByRound
+            SET WhiteResult = (?1), BlackResult = (?2), Ongoing = False
+            WHERE Id=(?3)
         ",
         params![white_result, black_result, id_game]
+    )
+}
+
+pub fn get_players_from_game(id_game: i64, connection: &Connection) -> Result<(Player, Player)> {
+    connection.query_row(
+        "
+            SELECT White.*, Black.*
+            FROM GameByRound
+            INNER JOIN Player AS White ON GameByRound.WhiteId = White.Id
+            INNER JOIN Player AS Black ON GameByRound.BlackId = Black.Id
+            WHERE GameByRound.Id = (?1)
+        ",
+        params![id_game],
+        |row| Ok(
+            (Player {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                points: row.get(2)?,
+                rating: row.get(3)?,
+            }, Player {
+                id: row.get(4)?,
+                name: row.get(5)?,
+                points: row.get(6)?,
+                rating: row.get(7)?,
+            }
+            )
+        )
+    )
+}
+
+pub fn update_player_state_by_round(player: &Player, round_id: i64, connection: &Connection) -> Result<usize> {
+    connection.execute(
+        "
+            UPDATE PlayerStateByRound
+            SET Points = (?1)
+            WHERE PlayerId = (?2) AND RoundId = (?3)
+        ",
+        params![player.points, player.id, round_id]
+    )
+}
+
+pub fn get_game_round(id_game: i64, connection: &Connection) -> Result<i64> {
+    connection.query_row(
+        "
+            SELECT RoundId
+            FROM GameByRound
+            WHERE Id = (?1)
+        ",
+        params![id_game],
+        |row| row.get(0)
+    )
+}
+
+pub fn update_player(player: &Player, connection: &Connection) -> Result<usize> {
+    connection.execute(
+        "
+            UPDATE Player
+            SET Points = (?1)
+            WHERE Id = (?2)
+        ",
+        params![player.points, player.id]
     )
 }

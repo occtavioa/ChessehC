@@ -16,7 +16,7 @@ const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) =
 use db::{
     create_schema, insert_pairing, insert_player, insert_round, insert_tournament, open_not_create,
     select_ongoing_games, select_pairings, select_pairings_by_round, select_players,
-    select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round, update_game_result
+    select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round, update_game_result, get_players_from_game, get_game_round, update_player_state_by_round, update_player
 };
 use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo, GamePlayerResult};
 use pairing::{execute_bbp, parse_bbp_output};
@@ -133,6 +133,10 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     let mut output_file = File::open(&output_file_path)?;
     let id_pairs = parse_bbp_output(&mut output_file)?;
 
+    if id_pairs.is_empty() {
+        return Err(InvokeErrorBind(String::from("No valid pairings")))
+    }
+    
     let current_round = current_round.unwrap_or_default() + 1;
 
     let pairings: Vec<Pairing> = id_pairs
@@ -162,8 +166,9 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
         insert_pairing(&pairing, &connection)?;
         match pairing.kind {
             PairingKind::Bye(ByeInfo { mut player, bye_point }) => {
-                player.points += get_bye_point(&bye_point);
+                player.points += bye_point.get_points();
                 insert_player_state_by_round(&player, pairing.number_round, &connection)?;
+                update_player(&player, &connection)?;
             },
             PairingKind::Game(GameInfo { white_player, black_player, .. }) => {
                 insert_player_state_by_round(&white_player, pairing.number_round, &connection)?;
@@ -197,6 +202,14 @@ async fn get_standings_by_round(path: PathBuf, round: u16) -> Result<Vec<Player>
 async fn set_game_result(id_game: i64, white_result: GamePlayerResult, black_result: GamePlayerResult, path: PathBuf) -> Result<(), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     update_game_result(id_game, &white_result, &black_result, &connection)?;
+    let (mut white, mut black) = get_players_from_game(id_game, &connection)?;
+    white.points += white_result.get_points();
+    black.points += black_result.get_points();
+    let round_id = get_game_round(id_game, &connection)?;
+    update_player_state_by_round(&white, round_id, &connection)?;
+    update_player_state_by_round(&black, round_id, &connection)?;
+    update_player(&white, &connection)?;
+    update_player(&black, &connection)?;
     Ok(())
 }
 

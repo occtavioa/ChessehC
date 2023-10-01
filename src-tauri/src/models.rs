@@ -53,11 +53,30 @@ pub enum ByePoint {
     Z,
 }
 
+impl ByePoint {
+    pub fn get_points(&self) -> f64 {
+        match self {
+            Self::U => 1.0,
+            Self::Z => 0.0
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub enum GamePlayerResult {
     W,
     D,
     L,
+}
+
+impl GamePlayerResult {
+    pub fn get_points(&self) -> f64 {
+        match self {
+            Self::W => 1.0,
+            Self::D => 1.0/2.0,
+            Self::L => 0.0
+        }
+    }
 }
 
 impl ToSql for ByePoint {
