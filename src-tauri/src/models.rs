@@ -79,6 +79,73 @@ impl GamePlayerResult {
     }
 }
 
+pub trait Point {
+    fn get_value(&self) -> f64;
+}
+
+pub struct Round {
+    pub id: i64,
+    pub number: u16,
+    pub date: String,
+}
+
+pub struct Game {
+    pub id: i64,
+    pub round_id: i64,
+    pub white_id: i64,
+    pub black_id: i64,
+    pub state: GameState
+}
+
+pub enum GameState {
+    Ongoing,
+    Finished(GamePoint, GamePoint)
+}
+
+impl Game {
+    pub fn update_result(&self, white_point: GamePoint, black_point: GamePoint) -> Result<usize, rusqlite::Error> {
+        todo!()
+    }
+}
+
+pub struct Bye {
+    pub id: i64,
+    pub round_id: i64,
+    pub player_id: i64,
+    pub bye_point: ByePoint
+}
+
+impl Bye {
+    pub fn update_point(&self, bye_point: ByePoint) -> Result<usize, rusqlite::Error> {
+        todo!()
+    }
+}
+
+pub enum GamePoint {
+    W,
+    D,
+    L
+}
+
+impl Point for GamePoint {
+    fn get_value(&self) -> f64 {
+        match self {
+            Self::W => 1.0,
+            Self::D => 1.0/2.0,
+            Self::L => 0.0
+        }
+    }
+}
+
+impl Point for ByePoint {
+    fn get_value(&self) -> f64 {
+        match self {
+            Self::U => 1.0,
+            Self::Z => 0.0
+        }
+    }
+}
+
 impl ToSql for ByePoint {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         Ok(self.to_string().into())
