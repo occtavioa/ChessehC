@@ -27,7 +27,7 @@ const router = createBrowserRouter([
         element: <Players></Players>
       },
       {
-        path: ":round",
+        path: "round/:roundId",
         children: [
           {
             path: "pairings",

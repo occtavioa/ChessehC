@@ -3,18 +3,18 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
 function Standings() {
-    const {path, round} = useParams()
+    const {path, roundId} = useParams()
     const [standings, setStandings] = useState([])
     
     useEffect(() => {
-        invoke("get_standings_by_round", {path: atob(path), round: parseInt(round)})
+        invoke("get_standings_by_round", {path: atob(path), roundId: parseInt(roundId)})
             .then((standings) => {setStandings(standings)})
             .catch((error) => {console.error(error);})
-    }, [round])
+    }, [path, roundId])
     
     return (
         <>
-            Standings
+            Clasificación ronda {}
             <table>
                 <thead>
                     <tr>

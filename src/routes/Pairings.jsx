@@ -3,79 +3,74 @@ import { useEffect, useRef, useState } from "react"
 import { useParams } from "react-router"
 
 function Pairings() {
-    const {path, round} = useParams()
-    const [pairings, setPairings] = useState([])
+    const {path, roundId} = useParams()
+    const [games, setGames] = useState([])
+    const [byes, setByes] = useState([])
+    const [players, setPlayers] = useState([])
 
     useEffect(() => {
-        invoke("get_pairings_by_round", {path: atob(path), round: parseInt(round)})
+        invoke("get_pairings_by_round", {path: atob(path), roundId: parseInt(roundId)})
             .then((pairings) => {
-                setPairings(pairings)
-                console.log(pairings);
+                setGames(pairings[0])
+                setByes(pairings[1])
             })
             .catch((error) => {console.error(error);})
-    }, [round])
+    }, [path, roundId])
 
     return (
         <>
-            Ronda {round}
             <table>
+                <caption>Partidas</caption>
                 <thead>
                     <tr>
-                        <th>
-                            Blancas
-                        </th>
-                        <th>
-                            Negras
-                        </th>
-                        <th>
-                            Resultado
-                        </th>
+                        <th>Blancas</th>
+                        <th>Negras</th>
+                        <th>Resultado</th>
                     </tr>
                 </thead>
                 <tbody>
                     {
-                        pairings.map((p, i) => 
-                            <tr key={i}>
-                                {
-                                    p.kind.Game ?
-                                        <>
-                                            <td>{p.kind.Game.white_player.name}</td>
-                                            <td>{p.kind.Game.black_player.name}</td>
-                                            <td>
+                        games.map(g => 
+                            <tr key={g.id}>
+                                <td>{g.white_id}</td>
+                                <td>{g.black_id}</td>
+                                <td>
+                                    {
+                                        g.state === "Ongoing" ?
+                                            <>
+                                                <select defaultValue={"D,D"}>
+                                                    <option value={"W,L"}>1 - 0</option>
+                                                    <option value={"D,D"}>1/2 - 1/2</option>
+                                                    <option value={"L,W"}>0 - 1</option>
+                                                </select>
+                                                <button>Set</button>
+                                            </> :
+                                            <>
                                                 {
-                                                    p.kind.Game.white_result && p.kind.Game.black_result ?
-                                                        <span>{p.kind.Game.white_result} - {p.kind.Game.black_result}</span> :
-                                                        <form onSubmit={async (e) => {
-                                                            e.preventDefault()
-                                                            let {game_result} = Object.fromEntries(new FormData(e.target))
-                                                            let [white_result, black_result] = game_result.split(',');
-                                                            console.log(white_result, black_result);
-                                                            invoke("set_game_result", {idGame: p.kind.Game.id, whiteResult: white_result, blackResult: black_result, path: atob(path)})
-                                                                .then(() => {
-                                                                    p.kind.Game.white_result = white_result
-                                                                    p.kind.Game.black_result = black_result
-                                                                })
-                                                                .catch((error) => {
-                                                                    console.error(error);
-                                                                })
-                                                        }}>
-                                                            <select name="game_result">
-                                                                <option value={""}>Elegir resultado</option>
-                                                                <option value={["W", "L"]}>1 - 0</option>
-                                                                <option value={["L", "W"]}>0 - 1</option>
-                                                                <option value={["D", "D"]}>1/2 - 1/2</option>
-                                                            </select>
-                                                            <button type="submit">Set</button>
-                                                        </form>
+                                                    g.Finished[0] - g.Finished[1]
                                                 }
-                                            </td>
-                                        </> :
-                                        <>
-                                            <td>{p.kind.Bye.player.name}</td>
-                                            <td><b>Bye</b></td>
-                                            <td>{p.kind.Bye.bye_point}</td>
-                                        </>
-                                }
+                                            </>
+                                    }
+                                </td>
+                            </tr>
+                        )
+                    }
+                </tbody>
+            </table>
+            <table>
+                <caption>Byes</caption>
+                <thead>
+                    <tr>
+                        <th>Jugador</th>
+                        <th>Punto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {
+                        byes.map(b =>
+                            <tr key={b.id}>
+                                <td>{b.player_id}</td>
+                                <td>{b.bye_point}</td>
                             </tr>
                         )
                     }

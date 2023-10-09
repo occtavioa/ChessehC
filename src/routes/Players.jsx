@@ -66,9 +66,17 @@ function Players() {
                     player.points = 0.0
                     player.rating = parseInt(player.rating)
 
-                    console.log(player);
                     invoke("add_player", {path: atob(path), player: player})
-                        .then((player) => {console.log(player);})
+                        .then(() => {
+                            invoke("get_players", {path: atob(path)})
+                                .then((players) => {
+                                    setPlayers(players)
+                                })
+                                .catch((error) => {
+                                    console.error(error);
+                                    navigate("/error")
+                                })
+                        })
                         .catch((error) => {console.error(error);})
                         .finally(() => {formDialogRef.current.close()})
                 }}>
