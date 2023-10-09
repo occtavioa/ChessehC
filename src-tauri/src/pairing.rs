@@ -2,21 +2,20 @@ use std::{
     fs::File,
     io::{Read, Result},
     path::Path,
-    process::Command,
+    process::{Child, Command},
 };
 
 pub async fn execute_bbp(
-    trf_file_path: &Path,
+    input_file_path: &Path,
     bbp_exec_path: &Path,
     output_file_path: &Path,
-) -> Result<()> {
+) -> Result<Child> {
     Command::new(bbp_exec_path)
         .arg("--dutch")
-        .arg(trf_file_path)
+        .arg(input_file_path)
         .arg("-p")
         .arg(output_file_path)
-        .output()?;
-    Ok(())
+        .spawn()
 }
 
 pub fn parse_bbp_output(output_file: &mut File) -> Result<Vec<(u16, u16)>> {

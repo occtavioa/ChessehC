@@ -1,4 +1,4 @@
-use crate::models::{Pairing, PairingKind, Player, Tournament, GameInfo, ByeInfo, GamePlayerResult};
+use crate::models::Tournament;
 use rusqlite::{params, Connection, OpenFlags, Result};
 use std::path::Path;
 
@@ -18,11 +18,12 @@ pub fn create_schema(connection: &Connection) -> Result<()> {
             \"Id\"      INTEGER,
             \"Name\"	TEXT NOT NULL,
             \"NumberRounds\"	INTEGER NOT NULL,
-            \"CurrentRound\"	INTEGER,
+            \"CurrentRoundId\"  INTEGER,
             PRIMARY KEY(\"Id\")
         );
         CREATE TABLE \"Player\" (
             \"Id\"	INTEGER,
+            \"TournamentId\"    INTEGER NOT NULL,
             \"Name\"	TEXT NOT NULL,
             \"Points\"  REAL NOT NULL,
             \"Rating\"	INTEGER,
@@ -30,29 +31,32 @@ pub fn create_schema(connection: &Connection) -> Result<()> {
         );
         CREATE TABLE \"Round\" (
             \"Id\"	INTEGER,
+            \"TournamentId\"    INTEGER NOT NULL,
             \"Number\"  INTEGER NOT NULL,
             \"Date\"    TEXT,
             PRIMARY KEY(\"Id\")
         );
         CREATE TABLE \"PlayerStateByRound\" (
-            \"PlayerId\"    INTEGER,
-            \"RoundId\" INTEGER,
+            \"PlayerId\"    INTEGER NOT NULL,
+            \"RoundId\" INTEGER NOT NULL,
             \"Points\"  REAL
         );
         CREATE TABLE \"GameByRound\" (
-            \"Id\"  INTEGER NOT NULL,
+            \"Id\"  INTEGER,
             \"RoundId\" INTEGER NOT NULL,
             \"WhiteId\" INTEGER NOT NULL,
             \"BlackId\" INTEGER NOT NULL,
+            \"Ongoing\" INTEGER NOT NULL,
             \"WhiteResult\" TEXT,
             \"BlackResult\" TEXT,
-            \"Ongoing\" INTEGER NOT NULL,
             PRIMARY KEY (\"Id\")
         );
         CREATE TABLE \"ByeByRound\" (
+            \"Id\"  INTEGER,
             \"RoundId\" INTEGER NOT NULL,
             \"PlayerId\"    INTEGER NOT NULL,
-            \"ByePoint\"    TEXT NOT NULL
+            \"ByePoint\"    TEXT NOT NULL,
+            PRIMARY KEY (\"Id\")
         );
         ",
     )
@@ -76,365 +80,10 @@ pub fn insert_tournament(tournament: &Tournament, connection: &Connection) -> Re
 pub fn select_tournament(connection: &Connection) -> Result<Tournament> {
     connection.query_row("SELECT * FROM \"Tournament\"", [], |row| {
         Ok(Tournament {
+            id: row.get(0)?,
             name: row.get(1)?,
             number_rounds: row.get(2)?,
-            current_round: row.get(3)?,
+            current_round_id: row.get(3)?,
         })
     })
-}
-
-pub fn select_players(connection: &Connection) -> Result<Vec<Player>> {
-    let mut query = connection.prepare("SELECT * FROM \"Player\"")?;
-    let players_iter = query
-        .query_map([], |row| {
-            Ok(Player {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                points: row.get(2)?,
-                rating: row.get(3)?,
-            })
-        })?
-        .filter(|p| p.is_ok());
-    Ok(players_iter
-        .map(|player| player.unwrap())
-        .into_iter()
-        .collect())
-}
-
-pub fn insert_player(connection: &Connection, player: &Player) -> Result<usize> {
-    connection.execute(
-        "
-        INSERT INTO \"Player\" VALUES
-        (
-            NULL,
-            (?1),
-            0,
-            (?2)
-        )
-        ",
-        params![&player.name, player.rating,],
-    )
-}
-
-pub fn select_games(connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut statement = connection.prepare(
-        "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
-        FROM GameByRound
-        INNER JOIN Round ON Round.Id = GameByRound.RoundId
-        INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
-        INNER JOIN Player AS Black ON Black.Id = GameByRound.BlackId
-        "
-    )?;
-    let games_iter = statement.query_map(params![], |row| {
-        Ok(Pairing {
-            number_round: row.get(0)?,
-            kind: PairingKind::Game(GameInfo {
-                id: row.get(11)?,
-                white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
-                black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
-                white_result: row.get(9)?,
-                black_result: row.get(10)?,
-            }),
-        })
-    })?;
-    Ok(games_iter
-        .filter(|m| m.is_ok())
-        .map(|m| m.unwrap())
-        .collect())
-}
-
-pub fn select_byes(connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut statement = connection.prepare(
-            "
-            SELECT Round.Number, Player.*, ByeByRound.ByePoint
-            FROM ByeByRound
-            INNER JOIN Round ON Round.Id = ByeByRound.RoundId
-            INNER JOIN Player ON Player.Id = ByeByRound.PlayerId
-            "
-        )?;
-    let byes_iter = statement.query_map(params![], |row| {
-        Ok(Pairing {
-            number_round: row.get(0)?,
-            kind: PairingKind::Bye(ByeInfo {
-                player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
-                bye_point: row.get(5)?,
-            }),
-        })
-    })?;
-    Ok(byes_iter
-        .filter(|b| b.is_ok())
-        .map(|b| b.unwrap())
-        .collect())
-}
-
-pub fn insert_pairing(pairing: &Pairing, connection: &Connection) -> Result<usize> {
-    match &pairing.kind {
-        PairingKind::Bye(ByeInfo {
-            player,
-            bye_point,
-        }) => connection.execute(
-            "
-            INSERT INTO ByeByRound VALUES
-            (
-                (SELECT Id FROM Round WHERE Number = (?1) LIMIT 1),
-                (?2),
-                (?3)
-            )
-            ",
-            params![pairing.number_round, player.id, bye_point],
-        ),
-        PairingKind::Game(GameInfo {
-            white_player,
-            black_player,
-            white_result,
-            black_result,
-            ..
-        }) => connection.execute(
-            "
-            INSERT INTO GameByRound VALUES
-            (
-                NULL,
-                (SELECT Id FROM Round WHERE Number = (?1) LIMIT 1),
-                (?2),
-                (?3),
-                (?4),
-                (?5),
-                TRUE
-            )",
-            params![
-                pairing.number_round,
-                white_player.id,
-                black_player.id,
-                white_result,
-                black_result
-            ],
-        ),
-    }
-}
-
-pub fn select_pairings(connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut games = select_games(&connection)?;
-    let byes = select_byes(&connection)?;
-    games.extend(byes);
-    Ok(games)
-}
-
-pub fn update_current_round(next_round: u16, connection: &Connection) -> Result<()> {
-    connection.execute(
-        "UPDATE Tournament SET CurrentRound = (?1)",
-        params![next_round],
-    )?;
-    Ok(())
-}
-
-pub fn insert_round(number_round: u16, connection: &Connection) -> Result<()> {
-    connection.execute(
-        "INSERT INTO Round VALUES
-        (
-            NULL,
-            (?1),
-            NULL
-        )",
-        params![number_round],
-    )?;
-    Ok(())
-}
-
-pub fn select_ongoing_games(connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut stmnt = connection.prepare(
-        "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
-        FROM GameByRound
-        INNER JOIN Round ON GameByRound.RoundId=Round.Id
-        INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
-        INNER JOIN Player AS Black ON Black.Id = GameByRound.BlackId
-        WHERE GameByRound.Ongoing=TRUE
-        "
-    )?;
-    let games_iter = stmnt.query_map(params![], |row| {
-        Ok(Pairing {
-            number_round: row.get(0)?,
-            kind: PairingKind::Game(GameInfo {
-                id: row.get(11)?,
-                white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
-                black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
-                white_result: row.get(9)?,
-                black_result: row.get(10)?,
-            }),
-        })
-    })?;
-    Ok(games_iter
-        .filter(|g| g.is_ok())
-        .map(|g| g.unwrap())
-        .collect())
-}
-
-pub fn select_games_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut statement = connection.prepare(
-        "
-        SELECT Round.Number, White.*, Black.*, GameByRound.WhiteResult, GameByRound.BlackResult, GameByRound.Id
-        FROM GameByRound
-        INNER JOIN Round ON GameByRound.RoundId=Round.Id
-        INNER JOIN Player AS White ON White.Id = GameByRound.WhiteId
-        INNER JOIN Player AS Black ON Black.Id = GameByRound.BlackId
-        WHERE Round.Number=(?1)"
-    )?;
-    let games_iter = statement.query_map(params![number_round], |row| {
-        Ok(Pairing {
-            number_round: row.get(0)?,
-            kind: PairingKind::Game(GameInfo {
-                id: row.get(11)?,
-                white_player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
-                black_player: Player { id: row.get(5)?, name: row.get(6)?, points: row.get(7)?, rating: row.get(8)? },
-                white_result: row.get(9)?,
-                black_result: row.get(10)?,
-            }),
-        })
-    })?;
-    Ok(games_iter
-        .filter(|m| m.is_ok())
-        .map(|m| m.unwrap())
-        .collect())
-}
-
-pub fn select_byes_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Pairing>> {
-    let mut statement = connection.prepare(
-        "
-        SELECT Round.Number, Player.*, ByeByRound.ByePoint
-        FROM ByeByRound
-        INNER JOIN Round ON Round.Id = ByeByRound.RoundId
-        INNER JOIN Player ON Player.Id = ByeByRound.PlayerId
-        WHERE Round.Number = (?1)
-        "
-    )?;
-    let byes_iter = statement.query_map(params![number_round], |row| {
-        Ok(Pairing {
-            number_round: row.get(0)?,
-            kind: PairingKind::Bye(ByeInfo {
-                player: Player { id: row.get(1)?, name: row.get(2)?, points: row.get(3)?, rating: row.get(4)? },
-                bye_point: row.get(5)?,
-            }),
-        })
-    })?;
-    Ok(byes_iter
-        .filter(|b| b.is_ok())
-        .map(|b| b.unwrap())
-        .collect())
-}
-
-pub fn select_pairings_by_round(
-    number_round: u16,
-    connection: &Connection,
-) -> Result<Vec<Pairing>> {
-    let mut games = select_games_by_round(number_round, &connection)?;
-    let byes = select_byes_by_round(number_round, &connection)?;
-    games.extend(byes);
-    Ok(games)
-}
-
-pub fn select_last_inserted_player(connection: &Connection) -> Result<Player> {
-    connection.query_row(
-        "SELECT * FROM Player ORDER BY Id DESC LIMIT 1", params![], |row| 
-        Ok(Player { id: row.get(0)?, name: row.get(1)?, points: row.get(2)?, rating: row.get(3)? })
-    )
-}
-
-pub fn insert_player_state_by_round(player: &Player, number_round: u16, connection: &Connection) -> Result<usize> {
-    connection.execute(
-        "
-        INSERT INTO PlayerStateByRound VALUES
-        (
-            (?1),
-            (SELECT Id FROM Round WHERE Number=(?2) LIMIT 1),
-            (?3)
-        )
-        ",
-        params![player.id, number_round, player.points]
-    )
-}
-
-pub fn select_players_by_round(number_round: u16, connection: &Connection) -> Result<Vec<Player>> {
-    let mut statement = connection.prepare(
-        "
-        SELECT PlayerStateByRound.Points, Player.*
-        FROM PlayerStateByRound
-        INNER JOIN Player ON PlayerStateByRound.PlayerId = Player.Id
-        WHERE PlayerStateByRound.RoundId = (SELECT Id FROM Round WHERE Number = (?1))
-        "
-    )?;
-    let players_iter = statement.query_map(params![number_round], |row| Ok(Player {id: row.get(1)?, name: row.get(2)?, points: row.get(0)?, rating: row.get(4)?}))?;
-    Ok(players_iter.filter(|p| p.is_ok()).map(|p| p.unwrap()).collect())
-}
-
-pub fn update_game_result(id_game: i64, white_result: &GamePlayerResult, black_result: &GamePlayerResult, connection: &Connection) -> Result<usize> {
-    connection.execute(
-        "
-            UPDATE GameByRound
-            SET WhiteResult = (?1), BlackResult = (?2), Ongoing = False
-            WHERE Id=(?3)
-        ",
-        params![white_result, black_result, id_game]
-    )
-}
-
-pub fn get_players_from_game(id_game: i64, connection: &Connection) -> Result<(Player, Player)> {
-    connection.query_row(
-        "
-            SELECT White.*, Black.*
-            FROM GameByRound
-            INNER JOIN Player AS White ON GameByRound.WhiteId = White.Id
-            INNER JOIN Player AS Black ON GameByRound.BlackId = Black.Id
-            WHERE GameByRound.Id = (?1)
-        ",
-        params![id_game],
-        |row| Ok(
-            (Player {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                points: row.get(2)?,
-                rating: row.get(3)?,
-            }, Player {
-                id: row.get(4)?,
-                name: row.get(5)?,
-                points: row.get(6)?,
-                rating: row.get(7)?,
-            }
-            )
-        )
-    )
-}
-
-pub fn update_player_state_by_round(player: &Player, round_id: i64, connection: &Connection) -> Result<usize> {
-    connection.execute(
-        "
-            UPDATE PlayerStateByRound
-            SET Points = (?1)
-            WHERE PlayerId = (?2) AND RoundId = (?3)
-        ",
-        params![player.points, player.id, round_id]
-    )
-}
-
-pub fn get_game_round(id_game: i64, connection: &Connection) -> Result<i64> {
-    connection.query_row(
-        "
-            SELECT RoundId
-            FROM GameByRound
-            WHERE Id = (?1)
-        ",
-        params![id_game],
-        |row| row.get(0)
-    )
-}
-
-pub fn update_player(player: &Player, connection: &Connection) -> Result<usize> {
-    connection.execute(
-        "
-            UPDATE Player
-            SET Points = (?1)
-            WHERE Id = (?2)
-        ",
-        params![player.points, player.id]
-    )
 }

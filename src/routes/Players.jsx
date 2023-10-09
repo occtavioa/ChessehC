@@ -9,15 +9,17 @@ function Players() {
     const navigate = useNavigate()
 
     useEffect(() => {
-        invoke("get_players", {path: atob(path)})
-            .then((players) => {
-                setPlayers(players)
-            })
-            .catch((error) => {
-                console.error(error);
-                navigate("/error")
-            })
-    }, [])
+        if(path) {
+            invoke("get_players", {path: atob(path)})
+                .then((players) => {
+                    setPlayers(players)
+                })
+                .catch((error) => {
+                    console.error(error);
+                    navigate("/error")
+                })
+        }
+    }, [path])
     
     return (
         <>
@@ -60,11 +62,12 @@ function Players() {
 
                     let player = Object.fromEntries(new FormData(e.target))
                     player.id = 0
+                    player.tournament_id = 0
+                    player.points = 0.0
                     player.rating = parseInt(player.rating)
-                    player.points = 0.0;
 
                     console.log(player);
-                    invoke("create_player", {path: atob(path), player: player})
+                    invoke("add_player", {path: atob(path), player: player})
                         .then((player) => {console.log(player);})
                         .catch((error) => {console.error(error);})
                         .finally(() => {formDialogRef.current.close()})

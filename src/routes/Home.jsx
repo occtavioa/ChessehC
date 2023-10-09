@@ -29,8 +29,9 @@ function Home() {
                     e.preventDefault();
 
                     let tournament = Object.fromEntries(new FormData(e.target));
+                    tournament.id = 0;
                     tournament.number_rounds = parseInt(tournament.number_rounds);
-                    tournament.current_round = null;
+                    tournament.current_round_id = null;
 
                     invoke("create_tournament", {tournament: tournament})
                         .then((path) => {

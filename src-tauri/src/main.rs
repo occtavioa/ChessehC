@@ -8,21 +8,16 @@ mod trf;
 mod types;
 mod utils;
 
-const BBP_INPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "input");
-const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::AppLocalData, "output");
-const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) =
-    (BaseDirectory::AppLocalData, "bbpPairings-v5.0.1");
+const BBP_INPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "input");
+const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "output");
+const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
-use db::{
-    create_schema, insert_pairing, insert_player, insert_round, insert_tournament, open_not_create,
-    select_ongoing_games, select_pairings, select_pairings_by_round, select_players,
-    select_tournament, update_current_round, select_last_inserted_player, select_players_by_round, insert_player_state_by_round, update_game_result, get_players_from_game, get_game_round, update_player_state_by_round, update_player
-};
-use models::{ByePoint, Pairing, PairingKind, Player, Tournament, ByeInfo, GameInfo, GamePlayerResult};
+use db::{create_schema, insert_tournament, open_not_create, select_tournament};
+use models::{Bye, Game, GamePoint, GameState, Player, Point, Round, Tournament, ByePoint};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
-    fs::{File, OpenOptions},
+    fs::{remove_file, File, OpenOptions},
     io::{BufWriter, Write},
     path::PathBuf,
 };
@@ -30,9 +25,8 @@ use tauri::{
     api::path::{resolve_path, BaseDirectory},
     AppHandle, Env, Manager,
 };
-use trf::{write_configuration, write_players_partial};
 use types::InvokeErrorBind;
-use utils::{sort_pairings, sort_players_initial, get_bye_point, sort_players_rating};
+use utils::sort_players_initial;
 
 #[tauri::command]
 async fn pick_tournament_file() -> Option<PathBuf> {
@@ -43,6 +37,9 @@ async fn pick_tournament_file() -> Option<PathBuf> {
 
 #[tauri::command]
 async fn create_tournament(tournament: Tournament) -> Result<Option<PathBuf>, InvokeErrorBind> {
+    if tournament.name.is_empty() || tournament.number_rounds < 5 {
+        return Err("Invalid input".into());
+    }
     match tauri::api::dialog::blocking::FileDialogBuilder::new()
         .set_file_name(&tournament.name)
         .add_filter("chessehc tournament file", &["ctf"])
@@ -50,6 +47,10 @@ async fn create_tournament(tournament: Tournament) -> Result<Option<PathBuf>, In
     {
         None => Ok(None),
         Some(path) => {
+            if path.exists() {
+                remove_file(&path)?;
+            }
+            File::create(&path)?;
             let connection = Connection::open(&path)?;
             create_schema(&connection)?;
             insert_tournament(&tournament, &connection)?;
@@ -67,150 +68,240 @@ async fn get_tournament(path: PathBuf) -> Result<Tournament, InvokeErrorBind> {
 #[tauri::command]
 async fn get_players(path: PathBuf) -> Result<Vec<Player>, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
-    Ok(select_players(&connection)?)
-}
-
-#[tauri::command]
-async fn create_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
-    let connection = open_not_create(&path).await?;
     let tournament = select_tournament(&connection)?;
-    insert_player(&connection, &player)?;
-    let player = select_last_inserted_player(&connection)?;
-    (1..=tournament.current_round.unwrap_or_default()).for_each(|r| {
-        let bye = Pairing {number_round: r, kind: PairingKind::Bye(ByeInfo { player: player.clone(), bye_point: ByePoint::Z })};
-        insert_pairing(&bye, &connection);
-    });
-    Ok(player)
+    Ok(tournament.get_players(&connection)?)
 }
 
 #[tauri::command]
-async fn get_current_round(path: PathBuf) -> Result<Option<u16>, InvokeErrorBind> {
+async fn add_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
+    let connection: Connection = open_not_create(&path).await?;
+    let tournament: Tournament = select_tournament(&connection)?;
+    tournament.add_player(&player, &connection)?;
+    let mut player: Player = tournament.get_last_added_player(&connection)?;
+    let rounds: Vec<Round> = tournament.get_rounds(&connection)?;
+    rounds
+        .iter()
+        .map(|r: &Round| {
+            let bye: Bye = Bye::new(player.id, ByePoint::Z);
+            r.add_bye(&bye, &connection)?;
+            player.sum_point(&ByePoint::Z, &connection)?;
+            r.add_player_state(&player, &connection)?;
+            Ok(())
+        })
+        .collect::<Result<(), rusqlite::Error>>()?;
+    Ok::<Player, InvokeErrorBind>(player)
+}
+
+#[tauri::command]
+async fn get_current_round(path: PathBuf) -> Result<Option<Round>, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
-    Ok(select_tournament(&connection)?.current_round)
+    Ok(select_tournament(&connection)?.get_current_round(&connection)?)
 }
 
 #[tauri::command]
 async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorBind> {
-    let connection = open_not_create(&path).await?;
-    let bbp_input_file_path = get_bbp_input_file_path(&app)?;
-    if !bbp_input_file_path.exists() {
-        return Err(InvokeErrorBind(String::from("bbpPairings not found")));
+    let connection: Connection = open_not_create(&path).await?;
+    let bbp_exec_path: PathBuf = get_bbp_exec_path(&app)?;
+    if !bbp_exec_path.exists() {
+        return Err("bbpPairings not found".into());
     }
-    let output_file_path = get_output_file_path(&app)?;
-    let bbp_exec_path = get_bbp_exec_path(&app)?;
+    let bbp_input_file_path: PathBuf = get_bbp_input_file_path(&app)?;
+    let bbp_output_file_path: PathBuf = get_bbp_output_file_path(&app)?;
 
-    if !select_ongoing_games(&connection)?.is_empty() {
-        return Err(InvokeErrorBind(String::from("Ongoing round")));
-    }
-
-    let mut players = select_players(&connection)?;
-    if players.len() < 2 {
-        return Err(InvokeErrorBind(String::from("Not enough players")));
-    }
-    let mut pairings = select_pairings(&connection)?;
-    let Tournament {
-        number_rounds,
-        current_round,
-        ..
-    } = select_tournament(&connection)?;
-
-    let bbp_input_file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(&bbp_input_file_path)?;
-    let mut buff = BufWriter::new(bbp_input_file);
-
-    sort_players_initial(&mut players);
-    sort_pairings(&mut pairings);
-
-    let players = players;
-    
-    write_configuration(&mut buff, number_rounds)?;
-    write_players_partial(&mut buff, &players, &pairings)?;
-    buff.flush()?;
-    execute_bbp(&bbp_input_file_path, &bbp_exec_path, &output_file_path).await?;
-
-    let mut output_file = File::open(&output_file_path)?;
-    let id_pairs = parse_bbp_output(&mut output_file)?;
-
-    if id_pairs.is_empty() {
-        return Err(InvokeErrorBind(String::from("No valid pairings")))
-    }
-    
-    let current_round = current_round.unwrap_or_default() + 1;
-
-    let pairings: Vec<Pairing> = id_pairs
-        .iter()
-        .map(|ip| Pairing {
-            number_round: current_round,
-            kind: match ip.1 == 0 {
-                true => PairingKind::Bye(ByeInfo {
-                    player: players.get(usize::from(ip.0 - 1)).unwrap().clone(),
-                    bye_point: ByePoint::U,
-                }),
-                false => PairingKind::Game(GameInfo {
-                    id: 0,
-                    white_player: players.get(usize::from(ip.0 - 1)).unwrap().clone(),
-                    black_player: players.get(usize::from(ip.1 - 1)).unwrap().clone(),
-                    white_result: None,
-                    black_result: None,
-                }),
-            },
-        })
-        .collect();
-
-    update_current_round(current_round, &connection)?;
-    insert_round(current_round, &connection)?;
-
-    for pairing in pairings {
-        insert_pairing(&pairing, &connection)?;
-        match pairing.kind {
-            PairingKind::Bye(ByeInfo { mut player, bye_point }) => {
-                player.points += bye_point.get_points();
-                insert_player_state_by_round(&player, pairing.number_round, &connection)?;
-                update_player(&player, &connection)?;
-            },
-            PairingKind::Game(GameInfo { white_player, black_player, .. }) => {
-                insert_player_state_by_round(&white_player, pairing.number_round, &connection)?;
-                insert_player_state_by_round(&black_player, pairing.number_round, &connection)?;
-            }
+    let tournament: Tournament = select_tournament(&connection)?;
+    if let Some(r) = &tournament.get_current_round(&connection)? {
+        let games: Vec<Game> = r.get_games(&connection)?;
+        if !games
+            .iter()
+            .filter(|&g| matches!(g.state, GameState::Ongoing))
+            .collect::<Vec<&Game>>()
+            .is_empty()
+        {
+            return Err("Ongoing round".into());
         }
     }
-    Ok(current_round)
-}
-
-#[tauri::command]
-async fn get_pairings_by_round(path: PathBuf, round: u16) -> Result<Vec<Pairing>, InvokeErrorBind> {
-    let connection = open_not_create(&path).await?;
-    let pairings = select_pairings_by_round(round, &connection)?;
-    Ok(pairings)
-}
-
-#[tauri::command]
-async fn get_standings_by_round(path: PathBuf, round: u16) -> Result<Vec<Player>, InvokeErrorBind> {
-    let connection = open_not_create(&path).await?;
-    let Tournament { current_round, .. } = select_tournament(&connection)?;
-    if round <= 0 || round > current_round.unwrap_or_default() {
-        return Err(InvokeErrorBind(String::from("Invalid round")))
+    let mut players = tournament.get_players(&connection)?;
+    if players.len() < 2 {
+        return Err("Not enough players".into());
     }
-    let mut players = select_players_by_round(round, &connection)?;
-    sort_players_rating(&mut players);
-    Ok(players)
+    sort_players_initial(&mut players);
+    let players: Vec<(u16, Player)> = players
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (i as u16 + 1, p))
+        .collect();
+
+    let rounds = tournament.get_rounds(&connection)?;
+
+    let trf_players_lines: Vec<String> = players
+        .iter()
+        .map(|(starting_rank, player)| {
+            let player_data = format!(
+                "001 {:>4} {:>1}{:>3} {:>33} {:>4} {:>3} {:>11} {:>10} {:>4.1} {:>4}",
+                starting_rank, "x", "x", player.name, player.rating, "", "", "", player.points, 0
+            );
+            let games = player.get_games(&connection)?;
+            let byes = player.get_byes(&connection)?;
+            let pairings_data: Vec<String> = rounds
+                .iter()
+                .map(|r| {
+                    if let Some(g) = games
+                        .iter()
+                        .find(|g| g.round_id == r.id)
+                    {
+                        if g.white_id == player.id {
+                            if let Some((starting_rank, _)) =
+                                players.iter().find(|(_, opponent)| opponent.id == g.black_id)
+                            {
+                                format!(
+                                    "{:>4} w {:>1}",
+                                    starting_rank,
+                                    match &g.state {
+                                        GameState::Ongoing => "",
+                                        GameState::Finished(wp, _) => match wp {
+                                            GamePoint::W => "1",
+                                            GamePoint::D => "=",
+                                            GamePoint::L => "0",
+                                        },
+                                    }
+                                )
+                            } else {
+                                format!("--------")
+                            }
+                        } else {
+                            if let Some((starting_rank, _)) =
+                                players.iter().find(|(_, opponent)| opponent.id == g.white_id)
+                            {
+                                format!(
+                                    "{:>4} w {:>1}",
+                                    starting_rank,
+                                    match &g.state {
+                                        GameState::Ongoing => "",
+                                        GameState::Finished(_, bp) => match bp {
+                                            GamePoint::W => "1",
+                                            GamePoint::D => "=",
+                                            GamePoint::L => "0",
+                                        },
+                                    }
+                                )
+                            } else {
+                                format!("--------")
+                            }
+                        }
+                    } else if let Some(b) = byes.iter().find(|b| b.round_id == r.id) {
+                        format!("0000   {}", b.bye_point.to_string())
+                    } else {
+                        format!("--------")
+                    }
+                })
+                .collect();
+            Ok(format!("{}  {}", player_data, pairings_data.join("  ")))
+        })
+        .collect::<Result<Vec<String>, rusqlite::Error>>()?;
+    let trf_config: String = tournament.get_trf_config();
+    let mut buff_input = BufWriter::new(
+        OpenOptions::new()
+            .truncate(true)
+            .write(true)
+            .create(true)
+            .open(&bbp_input_file_path)?,
+    );
+    buff_input.write(format! {"{}\r\n", trf_config}.as_bytes())?;
+    buff_input.write(format! {"{}\r\n", trf_players_lines.join("\r\n")}.as_bytes())?;
+    buff_input.flush()?;
+
+    execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path)
+        .await?
+        .wait_with_output()?;
+
+    let mut output_file = File::open(&bbp_output_file_path)?;
+    let id_pairs: Vec<(u16, u16)> = parse_bbp_output(&mut output_file)?;
+    if id_pairs.is_empty() {
+        return Err("No valid pairing".into());
+    }
+
+    let (game_pairs, bye_pairs) = id_pairs.split_at(
+        id_pairs
+            .iter()
+            .enumerate()
+            .find(|(_, p)| p.1 == 0)
+            .unwrap_or((id_pairs.len(), &(0, 0)))
+            .0,
+    );
+    let games: Vec<Game> = game_pairs
+        .iter()
+        .map(|&(w, b)| {
+            let white = &players
+                .iter()
+                .find(|(i, _)| *i == w)
+                .ok_or(format!("Invalid white id {w}"))?
+                .1;
+            let black = &players
+                .iter()
+                .find(|(i, _)| *i == b)
+                .ok_or(format!("Invalid black id {b}"))?
+                .1;
+            if white.id == black.id {
+                return Err(format!("Same players w:{w}\tb:{b}"));
+            }
+            Ok(Game::new(white.id, black.id))
+        })
+        .collect::<Result<Vec<Game>, String>>()?;
+    let byes: Vec<Bye> = bye_pairs
+        .iter()
+        .map(|&(p, b)| {
+            if b != 0 {
+                return Err(format!("Invalid bye {b}"));
+            }
+            let player = &players
+                .iter()
+                .find(|(i, _)| *i == p)
+                .ok_or(format!("Invalid player id {p}"))?
+                .1;
+            Ok(Bye::new(player.id, ByePoint::U))
+        })
+        .collect::<Result<Vec<Bye>, String>>()?;
+
+    tournament.update_current_round(&connection)?;
+    let current_round = tournament
+        .get_current_round(&connection)?
+        .ok_or("Error updating round")?;
+
+    games
+        .into_iter()
+        .map(|g| current_round.add_game(&g, &connection))
+        .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
+    byes.iter()
+        .map(|b| current_round.add_bye(b, &connection))
+        .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
+
+    let byes = current_round.get_byes(&connection)?;
+    byes.into_iter()
+        .map(|b| {
+            let mut player = b.get_player(&connection)?;
+            player.sum_point(&b.bye_point, &connection)?;
+            Ok(())
+        })
+        .collect::<Result<(), rusqlite::Error>>()?;
+
+    let players = tournament.get_players(&connection)?;
+    players
+        .into_iter()
+        .map(|p| current_round.add_player_state(&p, &connection))
+        .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
+
+    Ok(current_round.number)
 }
 
-#[tauri::command]
-async fn set_game_result(id_game: i64, white_result: GamePlayerResult, black_result: GamePlayerResult, path: PathBuf) -> Result<(), InvokeErrorBind> {
+pub async fn get_standings_by_round(
+    round_id: i64,
+    path: PathBuf,
+) -> Result<Vec<Player>, InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
-    update_game_result(id_game, &white_result, &black_result, &connection)?;
-    let (mut white, mut black) = get_players_from_game(id_game, &connection)?;
-    white.points += white_result.get_points();
-    black.points += black_result.get_points();
-    let round_id = get_game_round(id_game, &connection)?;
-    update_player_state_by_round(&white, round_id, &connection)?;
-    update_player_state_by_round(&black, round_id, &connection)?;
-    update_player(&white, &connection)?;
-    update_player(&black, &connection)?;
-    Ok(())
+    let round: Round = select_tournament(&connection)?
+        .get_round_by_id(round_id, &connection)?
+        .ok_or("Invalid round id")?;
+    Ok(round.get_standings(&connection)?)
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -223,7 +314,7 @@ fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
     )
 }
 
-fn get_output_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+fn get_bbp_output_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
     resolve_path(
         &app.config(),
         &app.package_info(),
@@ -249,9 +340,9 @@ fn get_bbp_exec_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let output_file_path = get_output_file_path(&app.handle())?;
-            if !output_file_path.exists() {
-                File::create(&output_file_path)?;
+            let bbp_output_file_path = get_bbp_output_file_path(&app.handle())?;
+            if !bbp_output_file_path.exists() {
+                File::create(&bbp_output_file_path)?;
             }
             let bbp_input_file_path = get_bbp_input_file_path(&app.app_handle())?;
             if !bbp_input_file_path.exists() {
@@ -272,12 +363,9 @@ fn main() {
             pick_tournament_file,
             get_tournament,
             get_players,
-            create_player,
+            add_player,
             get_current_round,
             make_pairing,
-            get_pairings_by_round,
-            get_standings_by_round,
-            set_game_result
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
