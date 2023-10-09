@@ -32,9 +32,9 @@ function TournamentLayout() {
                 <Link to={`players`}>Jugadores</Link>
                 <select value={selectedRoundId} onChange={(e) => {setSelectedRoundId(e.target.value)}}>
                     {
-                        rounds.map(r => {
-                            return <option value={r.id} key={r.id}>Ronda {r.number}</option>
-                        })
+                        rounds.map(r => 
+                            <option value={r.id} key={r.id}>Ronda {r.number}</option>
+                        )
                     }
                 </select>
                 {

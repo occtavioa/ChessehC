@@ -6,6 +6,8 @@ use rusqlite::{
 use serde::{Deserialize, Serialize};
 use std::str::{from_utf8, FromStr};
 
+use crate::db::get_player_by_id;
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Tournament {
     pub id: i64,
@@ -181,6 +183,26 @@ impl Tournament {
                 },
             )
             .optional()
+    }
+    pub fn get_game_by_id(&self, game_id: i64, connection: &Connection) -> Result<Game, rusqlite::Error> {
+        connection.query_row(
+            "
+                SELECT *
+                FROM GameByRound
+                WHERE GameByRound.Id = (?1)
+            ",
+            params![game_id],
+            |row| Ok(Game {
+                id: row.get(0)?,
+                round_id: row.get(1)?,
+                white_id: row.get(2)?,
+                black_id: row.get(3)?,
+                state: match row.get(4)? {
+                    true => GameState::Ongoing,
+                    false => GameState::Finished(row.get(5)?, row.get(6)?),
+                },
+            })
+        )
     }
 }
 
@@ -379,7 +401,7 @@ impl Round {
     pub fn get_standings(&self, connection: &Connection) -> Result<Vec<Player>, rusqlite::Error> {
         let mut statement = connection.prepare(
             "
-                SELECT Player.Id, Player.TournamentId, Player.Name, PlayerStateByRound.Points, Player.Rating
+                SELECT Player.Id, Player.TournamentId, Player.Name, ps.Points, Player.Rating
                 FROM Player
                 INNER JOIN PlayerStateByRound AS ps ON ps.PlayerId = Player.Id
                 INNER JOIN Round ON Round.Id = ps.RoundId
@@ -433,6 +455,16 @@ impl Round {
         })?;
         byes_iter.collect()
     }
+    pub fn update_player_state(&self, player: &Player, connection: &Connection) -> Result<usize, rusqlite::Error> {
+        connection.execute(
+            "
+                UPDATE PlayerStateByRound
+                SET Points = (?1)
+                WHERE PlayerId = (?2) AND RoundId = (?3)
+            ",
+            params![player.points, player.id, self.id]
+        )
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -461,11 +493,21 @@ impl Game {
     }
     pub fn update_result(
         &self,
-        white_point: GamePoint,
-        black_point: GamePoint,
+        white_point: &GamePoint,
+        black_point: &GamePoint,
         connection: &Connection,
     ) -> Result<usize, rusqlite::Error> {
-        todo!()
+        connection.execute(
+            "
+                UPDATE GameByRound
+                SET WhiteResult = (?1), BlackResult = (?2), Ongoing = FALSE
+                WHERE Id = (?3)
+            ",
+            params![white_point, black_point, self.id]
+        )
+    }
+    pub fn get_players(&self, connection: &Connection) -> Result<(Player, Player), rusqlite::Error> {
+        Ok((get_player_by_id(self.white_id, connection)?, get_player_by_id(self.black_id, connection)?))
     }
 }
 

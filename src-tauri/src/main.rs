@@ -13,7 +13,7 @@ const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "ou
 const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
 use db::{create_schema, insert_tournament, open_not_create, select_tournament};
-use models::{Bye, ByePoint, Game, GameState, Player, Round, Tournament};
+use models::{Bye, ByePoint, Game, GameState, Player, Round, Tournament, GamePoint};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
@@ -27,7 +27,7 @@ use tauri::{
 };
 use trf::get_players_lines;
 use types::InvokeErrorBind;
-use utils::sort_players_initial;
+use utils::{sort_players_initial, sort_players_ranked};
 
 #[tauri::command]
 async fn pick_tournament_file() -> Option<PathBuf> {
@@ -230,7 +230,17 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     Ok(current_round.number)
 }
 
-pub async fn get_standings_by_round(
+#[tauri::command]
+async fn get_pairings_by_round(round_id: i64, path: PathBuf) -> Result<(Vec<Game>, Vec<Bye>), InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let round: Round = select_tournament(&connection)?
+        .get_round_by_id(round_id, &connection)?
+        .ok_or("Invalid round id")?;
+    Ok((round.get_games(&connection)?, round.get_byes(&connection)?))
+}
+
+#[tauri::command]
+async fn get_standings_by_round(
     round_id: i64,
     path: PathBuf,
 ) -> Result<Vec<Player>, InvokeErrorBind> {
@@ -238,7 +248,33 @@ pub async fn get_standings_by_round(
     let round: Round = select_tournament(&connection)?
         .get_round_by_id(round_id, &connection)?
         .ok_or("Invalid round id")?;
-    Ok(round.get_standings(&connection)?)
+    let mut players = round.get_standings(&connection)?;
+    sort_players_ranked(&mut players);
+    Ok(players)
+}
+
+#[tauri::command]
+async fn get_rounds(path: PathBuf) -> Result<Vec<Round>, InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    Ok(select_tournament(&connection)?.get_rounds(&connection)?)
+}
+
+#[tauri::command]
+async fn set_game_result(game_id: i64, white_point: GamePoint, black_point: GamePoint, path: PathBuf) -> Result<(), InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let tournament: Tournament = select_tournament(&connection)?;
+    let current_round = tournament.get_current_round(&connection)?.ok_or("No current round")?;
+    let game: Game = tournament.get_game_by_id(game_id, &connection)?;
+    if current_round.id != game.round_id {
+        return Err("Invalid round".into())
+    }
+    game.update_result(&white_point, &black_point, &connection)?;
+    let (mut white, mut black) = game.get_players(&connection)?;
+    white.sum_point(&white_point, &connection)?;
+    black.sum_point(&black_point, &connection)?;
+    current_round.update_player_state(&white, &connection)?;
+    current_round.update_player_state(&black, &connection)?;
+    Ok(())
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -303,6 +339,10 @@ fn main() {
             add_player,
             get_current_round,
             make_pairing,
+            get_standings_by_round,
+            get_pairings_by_round,
+            get_rounds,
+            set_game_result
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -11,12 +11,21 @@ function Pairings() {
     useEffect(() => {
         invoke("get_pairings_by_round", {path: atob(path), roundId: parseInt(roundId)})
             .then((pairings) => {
-                setGames(pairings[0])
-                setByes(pairings[1])
+                console.log(pairings);
+                setGames(pairings.at(0))
+                setByes(pairings.at(1))
             })
             .catch((error) => {console.error(error);})
     }, [path, roundId])
 
+    useEffect(() => {
+        console.log(games);
+    }, [games])
+
+    useEffect(() => {
+        console.log(byes);
+    }, [byes])
+    
     return (
         <>
             <table>
@@ -38,17 +47,28 @@ function Pairings() {
                                     {
                                         g.state === "Ongoing" ?
                                             <>
-                                                <select defaultValue={"D,D"}>
-                                                    <option value={"W,L"}>1 - 0</option>
-                                                    <option value={"D,D"}>1/2 - 1/2</option>
-                                                    <option value={"L,W"}>0 - 1</option>
-                                                </select>
-                                                <button>Set</button>
+                                                <form onSubmit={async (e) => {
+                                                    e.preventDefault()
+                                                    let result = Object.fromEntries(new FormData(e.target))
+                                                    let [whitePoint, blackPoint, ..._] = result.gameResult.split(',')
+                                                    invoke("set_game_result", {gameId: g.id, whitePoint: whitePoint, blackPoint: blackPoint, path: atob(path)})
+                                                        .then((r) => {
+                                                            
+                                                        })
+                                                        .catch(e => {
+                                                            console.error(e);
+                                                        })
+                                                }}>
+                                                    <select name="gameResult" defaultValue={"D,D"}>
+                                                        <option value={"W,L"}>1 - 0</option>
+                                                        <option value={"D,D"}>1/2 - 1/2</option>
+                                                        <option value={"L,W"}>0 - 1</option>
+                                                    </select>
+                                                    <button type="submit">Set</button>
+                                                </form>
                                             </> :
                                             <>
-                                                {
-                                                    g.Finished[0] - g.Finished[1]
-                                                }
+                                                {g.state.Finished.at(0)} - {g.state.Finished.at(1)}
                                             </>
                                     }
                                 </td>

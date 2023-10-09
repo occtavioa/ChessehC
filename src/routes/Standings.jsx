@@ -14,8 +14,8 @@ function Standings() {
     
     return (
         <>
-            Clasificación ronda {}
             <table>
+                <caption>Clasificación</caption>
                 <thead>
                     <tr>
                         <th>Id</th>
@@ -26,7 +26,7 @@ function Standings() {
                 </thead>
                 <tbody>
                     {
-                        standings.map((p, i) => 
+                        standings.map((p, i) =>
                             <tr key={i}>
                                 <td>{p.id}</td>
                                 <td>{p.name}</td>

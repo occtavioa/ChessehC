@@ -1,5 +1,11 @@
+use std::cmp::Ordering;
+
 use crate::models::Player;
 
 pub fn sort_players_initial(players: &mut [Player]) {
     players.sort_by(|a, b| a.rating.cmp(&b.rating).reverse().then(a.name.cmp(&b.name)))
+}
+
+pub fn sort_players_ranked(players: &mut [Player]) {
+    players.sort_by(|a, b| a.points.partial_cmp(&b.points).unwrap_or_else(|| Ordering::Equal).reverse().then(a.name.cmp(&b.name)));
 }
