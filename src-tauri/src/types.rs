@@ -2,6 +2,8 @@ use serde::Deserialize;
 use std::io;
 use tauri::InvokeError;
 
+use crate::trf;
+
 #[derive(Deserialize)]
 pub enum InvokeErrorBind {
     Sqlite(String),
@@ -24,6 +26,12 @@ impl ToString for InvokeErrorBind {
             Self::Sqlite(s) => s.into(),
             Self::Tauri(s) => s.into(),
         }
+    }
+}
+
+impl From<trf::Error> for InvokeErrorBind {
+    fn from(value: trf::Error) -> Self {
+        Self::Other("trf".to_string())
     }
 }
 

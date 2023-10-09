@@ -13,7 +13,7 @@ const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "ou
 const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
 use db::{create_schema, insert_tournament, open_not_create, select_tournament};
-use models::{Bye, Game, GamePoint, GameState, Player, Point, Round, Tournament, ByePoint};
+use models::{Bye, ByePoint, Game, GameState, Player, Round, Tournament};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
@@ -25,6 +25,7 @@ use tauri::{
     api::path::{resolve_path, BaseDirectory},
     AppHandle, Env, Manager,
 };
+use trf::get_players_lines;
 use types::InvokeErrorBind;
 use utils::sort_players_initial;
 
@@ -133,71 +134,7 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
 
     let rounds = tournament.get_rounds(&connection)?;
 
-    let trf_players_lines: Vec<String> = players
-        .iter()
-        .map(|(starting_rank, player)| {
-            let player_data = format!(
-                "001 {:>4} {:>1}{:>3} {:>33} {:>4} {:>3} {:>11} {:>10} {:>4.1} {:>4}",
-                starting_rank, "x", "x", player.name, player.rating, "", "", "", player.points, 0
-            );
-            let games = player.get_games(&connection)?;
-            let byes = player.get_byes(&connection)?;
-            let pairings_data: Vec<String> = rounds
-                .iter()
-                .map(|r| {
-                    if let Some(g) = games
-                        .iter()
-                        .find(|g| g.round_id == r.id)
-                    {
-                        if g.white_id == player.id {
-                            if let Some((starting_rank, _)) =
-                                players.iter().find(|(_, opponent)| opponent.id == g.black_id)
-                            {
-                                format!(
-                                    "{:>4} w {:>1}",
-                                    starting_rank,
-                                    match &g.state {
-                                        GameState::Ongoing => "",
-                                        GameState::Finished(wp, _) => match wp {
-                                            GamePoint::W => "1",
-                                            GamePoint::D => "=",
-                                            GamePoint::L => "0",
-                                        },
-                                    }
-                                )
-                            } else {
-                                format!("--------")
-                            }
-                        } else {
-                            if let Some((starting_rank, _)) =
-                                players.iter().find(|(_, opponent)| opponent.id == g.white_id)
-                            {
-                                format!(
-                                    "{:>4} w {:>1}",
-                                    starting_rank,
-                                    match &g.state {
-                                        GameState::Ongoing => "",
-                                        GameState::Finished(_, bp) => match bp {
-                                            GamePoint::W => "1",
-                                            GamePoint::D => "=",
-                                            GamePoint::L => "0",
-                                        },
-                                    }
-                                )
-                            } else {
-                                format!("--------")
-                            }
-                        }
-                    } else if let Some(b) = byes.iter().find(|b| b.round_id == r.id) {
-                        format!("0000   {}", b.bye_point.to_string())
-                    } else {
-                        format!("--------")
-                    }
-                })
-                .collect();
-            Ok(format!("{}  {}", player_data, pairings_data.join("  ")))
-        })
-        .collect::<Result<Vec<String>, rusqlite::Error>>()?;
+    let trf_players_lines: Vec<String> = get_players_lines(&players, &rounds, &connection)?;
     let trf_config: String = tournament.get_trf_config();
     let mut buff_input = BufWriter::new(
         OpenOptions::new()
