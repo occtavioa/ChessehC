@@ -32,9 +32,13 @@ function Pairings() {
                 <caption>Partidas</caption>
                 <thead>
                     <tr>
-                        <th>Blancas</th>
-                        <th>Negras</th>
+                        <th>Id</th>
+                        <th>Rating</th>
+                        <th>Nombre</th>
                         <th>Resultado</th>
+                        <th>Id</th>
+                        <th>Rating</th>
+                        <th>Nombre</th>
                     </tr>
                 </thead>
                 <tbody>
