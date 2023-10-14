@@ -30,7 +30,7 @@ impl ToString for InvokeErrorBind {
 }
 
 impl From<trf::Error> for InvokeErrorBind {
-    fn from(value: trf::Error) -> Self {
+    fn from(_: trf::Error) -> Self {
         Self::Other("trf".to_string())
     }
 }

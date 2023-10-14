@@ -1,25 +1,13 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router"
+import { useLoaderData } from "react-router-dom";
 
 function Players() {
     const {path} = useParams()
     const formDialogRef = useRef(null);
-    const [players, setPlayers] = useState([])
+    const [players, setPlayers] = useState(useLoaderData())
     const navigate = useNavigate()
-
-    useEffect(() => {
-        if(path) {
-            invoke("get_players", {path: atob(path)})
-                .then((players) => {
-                    setPlayers(players)
-                })
-                .catch((error) => {
-                    console.error(error);
-                    navigate("/error")
-                })
-        }
-    }, [path])
     
     return (
         <>

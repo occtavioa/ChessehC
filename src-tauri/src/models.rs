@@ -6,8 +6,6 @@ use rusqlite::{
 use serde::{Deserialize, Serialize};
 use std::str::{from_utf8, FromStr};
 
-use crate::db::get_player_by_id;
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Tournament {
     pub id: i64,
@@ -267,10 +265,10 @@ impl Player {
         connection.execute(
             "
                 UPDATE Player
-                SET Points = (Points + (?1))
+                SET Points = (?1)
                 WHERE Id = (?2)
             ",
-            params![point.get_value(), self.id],
+            params![self.points, self.id],
         )
     }
     pub fn get_game_by_round(
@@ -507,7 +505,29 @@ impl Game {
         )
     }
     pub fn get_players(&self, connection: &Connection) -> Result<(Player, Player), rusqlite::Error> {
-        Ok((get_player_by_id(self.white_id, connection)?, get_player_by_id(self.black_id, connection)?))
+        connection.query_row(
+            "
+                SELECT w.*, b.*
+                FROM GameByRound as gbr
+                INNER JOIN Player AS w ON gbr.WhiteId = w.Id
+                INNER JOIN Player AS b ON gbr.BlackId = b.Id
+                WHERE gbr.Id = (?1)
+            ",
+            params![self.id],
+            |row| Ok((Player {
+                id: row.get(0)?,
+                tournament_id: row.get(1)?,
+                name: row.get(2)?,
+                points: row.get(3)?,
+                rating: row.get(4)?,
+            }, Player {
+                id: row.get(5)?,
+                tournament_id: row.get(6)?,
+                name: row.get(7)?,
+                points: row.get(8)?,
+                rating: row.get(9)?,
+            }))
+        )
     }
 }
 

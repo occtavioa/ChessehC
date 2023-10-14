@@ -1,27 +1,31 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
-import { Link, Outlet, useNavigate, useParams } from "react-router-dom"
+import { Link, Outlet, useHref, useLocation, useNavigate, useParams, useResolvedPath, useSearchParams } from "react-router-dom"
 
 function TournamentLayout() {
-    const {path} = useParams()
+    const {path, roundId} = useParams()
     const [rounds, setRounds] = useState([])
     const [selectedRoundId, setSelectedRoundId] = useState()
+    const {pathname} = useResolvedPath()
     const navigate = useNavigate()
-
+    
     useEffect(() => {
         invoke("get_rounds", {path: atob(path)})
             .then((rounds) => {
-                setRounds(rounds)
-                setSelectedRoundId(rounds.at(-1).id)
-                console.log(rounds.at(-1));
+                if(rounds.length > 0) {
+                    setRounds(rounds)
+                    setSelectedRoundId(rounds.at(-1).id)
+                }
             })
             .catch(e => {
                 console.error(e);
             })
     }, [path])
-
+    
     useEffect(() => {
-        console.log(selectedRoundId);
+        if(roundId && selectedRoundId) {
+            navigate(`round/${selectedRoundId}/${pathname.split("/").at(-1)}`)
+        }
     }, [selectedRoundId])
     
     return (
@@ -30,13 +34,16 @@ function TournamentLayout() {
                 <Link to={`/`}>Inicio</Link>
                 <Link to={`.`}>Torneo</Link>
                 <Link to={`players`}>Jugadores</Link>
-                <select value={selectedRoundId} onChange={(e) => {setSelectedRoundId(e.target.value)}}>
-                    {
-                        rounds.map(r => 
-                            <option value={r.id} key={r.id}>Ronda {r.number}</option>
-                        )
-                    }
-                </select>
+                {
+                    rounds.length > 0 &&
+                        <select value={selectedRoundId} onChange={(e) => {setSelectedRoundId(parseInt(e.target.value))}}>
+                            {
+                                rounds.map(r => 
+                                    <option value={r.id} key={r.id}>Ronda {r.number}</option>
+                                )
+                            }
+                        </select>
+                }
                 {
                     selectedRoundId &&
                         <>

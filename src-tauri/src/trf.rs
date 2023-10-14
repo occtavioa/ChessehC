@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use crate::models::{GameState, Player, Round};
+use crate::models::{GameState, Player, Round, GamePoint};
 
 pub enum Error {
     Ctf(rusqlite::Error),
@@ -24,7 +24,7 @@ pub fn get_players_lines(
         .map(|(starting_rank, player)| {
             let player_data = format!(
                 "001 {:>4} {:>1}{:>3} {:>33} {:>4} {:>3} {:>11} {:>10} {:>4.1} {:>4}",
-                starting_rank, "", "", player.name, player.rating, "", "", "", player.points, 0
+                starting_rank, "", "", "", player.rating, "", "", "", player.points, 0
             );
             let rounds_data = rounds
                 .iter()
@@ -47,9 +47,17 @@ pub fn get_players_lines(
                                 opponent_starting_rank,
                                 if g.white_id == player.id { "w" } else { "b" },
                                 if g.white_id == player.id {
-                                    wp.to_string()
+                                    match wp {
+                                        GamePoint::W => '1',
+                                        GamePoint::D => '=',
+                                        GamePoint::L => '0',
+                                    }
                                 } else {
-                                    bp.to_string()
+                                    match bp {
+                                        GamePoint::W => '1',
+                                        GamePoint::D => '=',
+                                        GamePoint::L => '0',
+                                    }
                                 }
                             ))
                         } else {

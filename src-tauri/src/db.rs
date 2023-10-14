@@ -87,21 +87,3 @@ pub fn select_tournament(connection: &Connection) -> Result<Tournament> {
         })
     })
 }
-
-pub fn get_player_by_id(player_id: i64, connection: &Connection) -> Result<Player> {
-    connection.query_row(
-        "
-            SELECT *
-            FROM Player
-            WHERE Id = (?1)
-        ",
-        params![player_id],
-        |row| Ok(Player {
-            id: row.get(0)?,
-            tournament_id: row.get(1)?,
-            name: row.get(2)?,
-            points: row.get(3)?,
-            rating: row.get(4)?,
-        })
-    )
-} 

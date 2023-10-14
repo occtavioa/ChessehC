@@ -1,16 +1,9 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useLoaderData, useParams } from "react-router";
 
 function Standings() {
-    const {path, roundId} = useParams()
-    const [standings, setStandings] = useState([])
-    
-    useEffect(() => {
-        invoke("get_standings_by_round", {path: atob(path), roundId: parseInt(roundId)})
-            .then((standings) => {setStandings(standings)})
-            .catch((error) => {console.error(error);})
-    }, [path, roundId])
+    const standings = useLoaderData()
     
     return (
         <>

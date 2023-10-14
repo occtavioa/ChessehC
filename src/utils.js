@@ -1,4 +1,4 @@
-function getPointValue(p) {
+export function getPointValue(p) {
     switch (p) {
         case "W":
             return 1.0

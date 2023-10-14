@@ -25,7 +25,7 @@ function Home() {
                     formDialogRef.current.close();
                 }}>x</button>
 
-                <form onSubmit={(e) => {
+                <form onSubmit={async (e) => {
                     e.preventDefault();
 
                     let tournament = Object.fromEntries(new FormData(e.target));

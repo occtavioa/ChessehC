@@ -3,18 +3,24 @@ import { useEffect } from "react";
 import { useLoaderData, useNavigate, useParams } from "react-router-dom";
 
 function TournamentData() {
-    const {path} = useParams()
-    const navigate = useNavigate()
-    
-    useEffect(() => {
-        invoke("get_tournament", {path: atob(path)})
-            .then((tournament) => {console.log(tournament);})
-            .catch((error) => {console.error(error); navigate("/error")})
-    }, [])
-    
+    let tournament = useLoaderData()
+
     return (
         <>
-            Data
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Número de rondas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{tournament.name}</td>
+                        <td>{tournament.number_rounds}</td>
+                    </tr>
+                </tbody>
+            </table>
         </>
     )
 }

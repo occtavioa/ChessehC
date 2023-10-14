@@ -120,6 +120,9 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
         {
             return Err("Ongoing round".into());
         }
+        if r.number >= tournament.number_rounds {
+            return Err("Number of rounds reached".into())
+        }
     }
     let mut players = tournament.get_players(&connection)?;
     if players.len() < 2 {
@@ -147,10 +150,19 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     buff_input.write(format! {"{}\r\n", trf_players_lines.join("\r\n")}.as_bytes())?;
     buff_input.flush()?;
 
-    execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path)
+    let output = execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path)
         .await?
         .wait_with_output()?;
 
+    match output.status.code() {
+        Some(0) => {},
+        Some(1) => {return Err("No valid pairing".into())},
+        Some(3) => {return Err("Invalid request".into())},
+        Some(4) => {return Err("Data size could not be handled".into())},
+        Some(5) => {return Err("Error on file acces".into())},
+        _ => {return Err("Unexpected error".into())}
+    }
+        
     let mut output_file = File::open(&bbp_output_file_path)?;
     let id_pairs: Vec<(u16, u16)> = parse_bbp_output(&mut output_file)?;
     if id_pairs.is_empty() {
@@ -263,8 +275,11 @@ async fn get_rounds(path: PathBuf) -> Result<Vec<Round>, InvokeErrorBind> {
 async fn set_game_result(game_id: i64, white_point: GamePoint, black_point: GamePoint, path: PathBuf) -> Result<(), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let tournament: Tournament = select_tournament(&connection)?;
-    let current_round = tournament.get_current_round(&connection)?.ok_or("No current round")?;
     let game: Game = tournament.get_game_by_id(game_id, &connection)?;
+    if matches!(game.state, GameState::Finished(_, _)) {
+        return Err("Game result already set".into())
+    }
+    let current_round = tournament.get_current_round(&connection)?.ok_or("No current round")?;
     if current_round.id != game.round_id {
         return Err("Invalid round".into())
     }
@@ -275,6 +290,14 @@ async fn set_game_result(game_id: i64, white_point: GamePoint, black_point: Game
     current_round.update_player_state(&white, &connection)?;
     current_round.update_player_state(&black, &connection)?;
     Ok(())
+}
+
+#[tauri::command]
+async fn get_game_players(game_id: i64, path: PathBuf) -> Result<(Player, Player), InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let tournament = select_tournament(&connection)?;
+    let game = tournament.get_game_by_id(game_id, &connection)?;
+    Ok(game.get_players(&connection)?)
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -342,7 +365,8 @@ fn main() {
             get_standings_by_round,
             get_pairings_by_round,
             get_rounds,
-            set_game_result
+            set_game_result,
+            get_game_players
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

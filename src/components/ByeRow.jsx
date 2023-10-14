@@ -1,3 +1,5 @@
+import { getPointValue } from "../utils"
+
 function ByeRow({player, bye}) {
     return (
         <tr>

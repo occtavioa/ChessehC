@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 
-function ErrorRoute() {
+function Error() {
     return (
         <>
             <Link to={"/"}>Volver al inicio</Link>
@@ -9,4 +9,4 @@ function ErrorRoute() {
     )
 }
 
-export default ErrorRoute
+export default Error

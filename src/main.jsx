@@ -7,7 +7,8 @@ import TournamentData from "./routes/TournamentData";
 import Players from "./routes/Players";
 import Pairings from "./routes/Pairings";
 import Standings from "./routes/Standings";
-import ErrorRoute from "./routes/ErrorRoute";
+import Error from "./routes/Error";
+import { invoke } from "@tauri-apps/api";
 
 const router = createBrowserRouter([
   {
@@ -20,22 +21,44 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <TournamentData></TournamentData>
+        element: <TournamentData></TournamentData>,
+        loader: async ({params}) => {
+          let {path} = params
+          let tournament = await invoke("get_tournament", {path: atob(path)})
+          return tournament
+        }
       },
       {
         path: "players",
-        element: <Players></Players>
+        element: <Players></Players>,
+        loader: async ({params}) => {
+          console.log("loader");
+          let {path} = params
+          let players = await invoke("get_players", {path: atob(path)})
+          return players
+        },
       },
       {
         path: "round/:roundId",
         children: [
           {
             path: "pairings",
-            element: <Pairings></Pairings>
+            element: <Pairings></Pairings>,
+            loader: async ({params}) => {
+              let {path, roundId} = params
+              let [games, byes, ..._] = await invoke("get_pairings_by_round", {path: atob(path), roundId: parseInt(roundId)})
+              let players = await invoke("get_standings_by_round", {path: atob(path), roundId: parseInt(roundId)})
+              return {players, games, byes}
+            }
           },
           {
             path: "standings",
-            element: <Standings></Standings>
+            element: <Standings></Standings>,
+            loader: async ({params}) => {
+              let {path, roundId} = params
+              let standings = await invoke("get_standings_by_round", {path: atob(path), roundId: parseInt(roundId)})
+              return standings
+            }
           }
         ]
       }
@@ -43,7 +66,7 @@ const router = createBrowserRouter([
   },
   {
     path: "error",
-    element: <ErrorRoute></ErrorRoute>
+    element: <Error></Error>
   }
 ])
 
