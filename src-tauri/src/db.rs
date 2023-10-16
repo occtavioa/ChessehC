@@ -27,6 +27,7 @@ pub fn create_schema(connection: &Connection) -> Result<()> {
             \"Name\"	TEXT NOT NULL,
             \"Points\"  REAL NOT NULL,
             \"Rating\"	INTEGER,
+            \"Title\"   TEXT,
             PRIMARY KEY(\"Id\")
         );
         CREATE TABLE \"Round\" (

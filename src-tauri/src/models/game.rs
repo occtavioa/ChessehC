@@ -58,12 +58,14 @@ impl Game {
                 name: row.get(2)?,
                 points: row.get(3)?,
                 rating: row.get(4)?,
+                title: row.get(5)?
             }, Player {
                 id: row.get(5)?,
                 tournament_id: row.get(6)?,
                 name: row.get(7)?,
                 points: row.get(8)?,
                 rating: row.get(9)?,
+                title: row.get(10)?
             }))
         )
     }

@@ -4,3 +4,4 @@ pub mod point;
 pub mod bye;
 pub mod game;
 pub mod round;
+pub mod title;

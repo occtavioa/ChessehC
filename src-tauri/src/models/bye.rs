@@ -35,6 +35,7 @@ impl Bye {
                     name: row.get(2)?,
                     points: row.get(3)?,
                     rating: row.get(4)?,
+                    title: row.get(5)?,
                 })
             },
         )

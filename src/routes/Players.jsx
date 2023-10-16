@@ -21,8 +21,9 @@ function Players() {
                 <thead>
                     <tr>
                         <th>Id</th>
-                        <th>Nombre</th>
                         <th>Rating</th>
+                        <th>Título</th>
+                        <th>Nombre</th>
                         <th>Puntos</th>
                     </tr>
                 </thead>
@@ -31,8 +32,9 @@ function Players() {
                         players.map((p, i) => 
                             <tr key={i}>
                                 <td>{p.id}</td>
-                                <td>{p.name}</td>
                                 <td>{p.rating}</td>
+                                <td>{p.title}</td>
+                                <td>{p.name}</td>
                                 <td>{p.points}</td>
                             </tr>
                         )
@@ -52,6 +54,7 @@ function Players() {
                     player.id = 0
                     player.tournament_id = 0
                     player.points = 0.0
+                    player.title = player.title === "" ? null : player.title
                     player.rating = parseInt(player.rating)
 
                     invoke("add_player", {path: atob(path), player: player})
@@ -70,6 +73,19 @@ function Players() {
                 }}>
                     <label htmlFor="name">Nombre</label>
                     <input type="text" name="name" id="name" required />
+
+                    <label htmlFor="title">Título</label>
+                    <select name="title" id="title">
+                        <option value="">Ninguno</option>
+                        <option>WCM</option>
+                        <option>WFM</option>
+                        <option>CM</option>
+                        <option>WIM</option>
+                        <option>FM</option>
+                        <option>WGM</option>
+                        <option>IM</option>
+                        <option>GM</option>
+                    </select>
 
                     <label htmlFor="rating">Rating</label>
                     <input type="number" name="rating" id="rating" min={0} max={9999} defaultValue={0} />

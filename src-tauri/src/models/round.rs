@@ -68,7 +68,7 @@ impl Round {
     pub fn get_standings(&self, connection: &Connection) -> Result<Vec<Player>, rusqlite::Error> {
         let mut statement = connection.prepare(
             "
-                SELECT Player.Id, Player.TournamentId, Player.Name, ps.Points, Player.Rating
+                SELECT Player.Id, Player.TournamentId, Player.Name, ps.Points, Player.Rating, Player.Title
                 FROM Player
                 INNER JOIN PlayerStateByRound AS ps ON ps.PlayerId = Player.Id
                 INNER JOIN Round ON Round.Id = ps.RoundId
@@ -82,6 +82,7 @@ impl Round {
                 name: row.get(2)?,
                 points: row.get(3)?,
                 rating: row.get(4)?,
+                title: row.get(5)?,
             })
         })?;
         players_iter.collect()

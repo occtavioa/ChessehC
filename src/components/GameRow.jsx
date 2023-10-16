@@ -45,6 +45,7 @@ function PlayerData({player}) {
         <>
             <td>{player.id}</td>
             <td>{player.rating}</td>
+            <td>{player.title}</td>
             <td>{player.name}</td>
         </>
     )

@@ -11,53 +11,85 @@ function Pairings() {
         <>
             <table>
                 <caption>Partidas</caption>
-                <thead>
-                    <tr>
-                        <th>Id</th>
-                        <th>Rating</th>
-                        <th>Nombre</th>
-                        <th>Resultado</th>
-                        <th>Id</th>
-                        <th>Rating</th>
-                        <th>Nombre</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {
-                        games.map(game => 
-                            <GameRow 
-                                white={players.find(p => p.id === game.white_id)}
-                                black={players.find(p => p.id === game.black_id)}
-                                game={game}
-                                key={game.id}
-                            />
-                        )
-                    }
-                </tbody>
+                <GameHeader />
+                <GameBody games={games} players={players} />
             </table>
             <table>
                 <caption>Byes</caption>
-                <thead>
-                    <tr>
-                        <th>Id</th>
-                        <th>Rating</th>
-                        <th>Nombre</th>
-                        <th>Punto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {
-                        byes.map((bye, i) =>
-                            <ByeRow
-                                bye={bye}
-                                player={players.find(player => player.id === bye.player_id)}
-                                key={i}
-                            />
-                        )
-                    }
-                </tbody>
+                <ByeHeader />
+                <ByeBody byes={byes} players={players} />
             </table>
         </>
+    )
+}
+
+function ByeBody({byes, players}) {
+    return (
+        <tbody>
+            {
+                byes.map((bye, i) =>
+                    <ByeRow
+                        bye={bye}
+                        player={players.find(player => player.id === bye.player_id)}
+                        key={i}
+                    />
+                )
+            }
+        </tbody>
+    )
+}
+
+function GameBody({games, players}) {
+    return (
+        <tbody>
+            {
+                games.map(game => 
+                    <GameRow 
+                        white={players.find(p => p.id === game.white_id)}
+                        black={players.find(p => p.id === game.black_id)}
+                        game={game}
+                        key={game.id}
+                    />
+                )
+            }
+        </tbody>
+    )
+}
+
+function GameHeader() {
+    return (
+        <thead>
+            <tr>
+                <GamePlayerHeaderData />
+                <th>Resultado</th>
+                <GamePlayerHeaderData />
+            </tr>
+        </thead>
+    )
+}
+
+function GamePlayerHeaderData() {
+    return (
+        <>
+            <th>Id</th>
+            <th>Rating</th>
+            <th>Título</th>
+            <th>Nombre</th>
+        </>
+    )
+}
+
+function ByeHeader() {
+    return (
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Rating</th>
+                <th>Título</th>
+                <th>Nombre</th>
+                <th>Punto</th>
+            </tr>
+        </thead>
     )
 }
 

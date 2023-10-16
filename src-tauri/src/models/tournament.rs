@@ -27,6 +27,7 @@ impl Tournament {
                 name: row.get(2)?,
                 points: row.get(3)?,
                 rating: row.get(4)?,
+                title: row.get(5)?,
             })
         })?;
         players_iter.collect()
@@ -44,10 +45,11 @@ impl Tournament {
                     (?1),
                     (?2),
                     0,
-                    (?3)
+                    (?3),
+                    (?4)
                 )
             ",
-            params![self.id, player.name, player.rating],
+            params![self.id, player.name, player.rating, player.title],
         )
     }
     pub fn get_last_added_player(
@@ -68,6 +70,7 @@ impl Tournament {
                     name: row.get(2)?,
                     points: row.get(3)?,
                     rating: row.get(4)?,
+                    title: row.get(5)?
                 })
             },
         )

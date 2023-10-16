@@ -32,7 +32,6 @@ const router = createBrowserRouter([
         path: "players",
         element: <Players></Players>,
         loader: async ({params}) => {
-          console.log("loader");
           let {path} = params
           let players = await invoke("get_players", {path: atob(path)})
           return players

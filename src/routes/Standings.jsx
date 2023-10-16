@@ -12,8 +12,9 @@ function Standings() {
                 <thead>
                     <tr>
                         <th>Id</th>
-                        <th>Nombre</th>
                         <th>Rating</th>
+                        <th>Título</th>
+                        <th>Nombre</th>
                         <th>Puntos</th>
                     </tr>
                 </thead>
@@ -22,8 +23,9 @@ function Standings() {
                         standings.map((p, i) =>
                             <tr key={i}>
                                 <td>{p.id}</td>
-                                <td>{p.name}</td>
                                 <td>{p.rating}</td>
+                                <td>{p.title}</td>
+                                <td>{p.name}</td>
                                 <td>{p.points}</td>
                             </tr>
                         )
