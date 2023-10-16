@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { getPointValue } from "../utils"
 import { invoke } from "@tauri-apps/api"
 import { useParams } from "react-router"

@@ -1,6 +1,4 @@
-import { invoke } from "@tauri-apps/api"
-import { useEffect, useRef, useState } from "react"
-import { useLoaderData, useParams } from "react-router"
+import { useLoaderData } from "react-router"
 import GameRow from "../components/GameRow"
 import ByeRow from "../components/ByeRow"
 
@@ -60,15 +58,15 @@ function GameHeader() {
     return (
         <thead>
             <tr>
-                <GamePlayerHeaderData />
+                <GamePlayerHeader />
                 <th>Resultado</th>
-                <GamePlayerHeaderData />
+                <GamePlayerHeader />
             </tr>
         </thead>
     )
 }
 
-function GamePlayerHeaderData() {
+function GamePlayerHeader() {
     return (
         <>
             <th>Id</th>

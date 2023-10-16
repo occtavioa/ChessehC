@@ -1,12 +1,12 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
-import { Link, Outlet, useHref, useLocation, useNavigate, useParams, useResolvedPath, useSearchParams } from "react-router-dom"
+import { Link, Outlet, useHref, useNavigate, useParams } from "react-router-dom"
 
 function TournamentLayout() {
     const {path, roundId} = useParams()
     const [rounds, setRounds] = useState([])
     const [selectedRoundId, setSelectedRoundId] = useState()
-    const {pathname} = useResolvedPath()
+    const href = useHref()
     const navigate = useNavigate()
     
     useEffect(() => {
@@ -24,7 +24,7 @@ function TournamentLayout() {
     
     useEffect(() => {
         if(roundId && selectedRoundId) {
-            navigate(`round/${selectedRoundId}/${pathname.split("/").at(-1)}`)
+            navigate(`round/${selectedRoundId}/${href.split("/").at(-1)}`)
         }
     }, [selectedRoundId])
     

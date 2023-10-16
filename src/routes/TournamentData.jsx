@@ -1,6 +1,4 @@
-import { invoke } from "@tauri-apps/api";
-import { useEffect } from "react";
-import { useLoaderData, useNavigate, useParams } from "react-router-dom";
+import { useLoaderData } from "react-router-dom";
 
 function TournamentData() {
     let tournament = useLoaderData()

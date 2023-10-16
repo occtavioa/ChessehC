@@ -1,6 +1,4 @@
-import { invoke } from "@tauri-apps/api";
-import { useEffect, useState } from "react";
-import { useLoaderData, useParams } from "react-router";
+import { useLoaderData } from "react-router";
 
 function Standings() {
     const standings = useLoaderData()
