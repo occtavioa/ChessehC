@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use crate::models::{GameState, Player, Round, GamePoint};
+use crate::models::{player::Player, round::Round, game::GameState, point::GamePoint};
 
 pub enum Error {
     Ctf(rusqlite::Error),
@@ -64,7 +64,7 @@ pub fn get_players_lines(
                             Err(Error::InvalidPairing)
                         }
                     } else if let Some(b) = player.get_bye_by_round(r.id, connection)? {
-                        Ok(format!("0000   {:>1}", b.bye_point.to_string()))
+                        Ok(format!("0000 - {:>1}", b.bye_point.to_string()))
                     } else {
                         Err(Error::PairingNotFound)
                     }

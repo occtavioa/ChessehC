@@ -13,7 +13,7 @@ const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "ou
 const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
 use db::{create_schema, insert_tournament, open_not_create, select_tournament};
-use models::{Bye, ByePoint, Game, GameState, Player, Round, Tournament, GamePoint};
+use models::{tournament::Tournament, player::Player, round::Round, bye::Bye, point::{ByePoint, GamePoint}, game::{Game, GameState}};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
@@ -151,10 +151,9 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     buff_input.flush()?;
 
     let output = execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path)
-        .await?
-        .wait_with_output()?;
+        .await?;
 
-    match output.status.code() {
+    match output.code() {
         Some(0) => {},
         Some(1) => {return Err("No valid pairing".into())},
         Some(3) => {return Err("Invalid request".into())},

@@ -1,4 +1,4 @@
-use crate::models::{Tournament, Player};
+use crate::models::tournament::Tournament;
 use rusqlite::{params, Connection, OpenFlags, Result};
 use std::path::Path;
 
