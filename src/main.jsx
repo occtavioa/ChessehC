@@ -32,10 +32,23 @@ const router = createBrowserRouter([
         path: "players",
         element: <Players></Players>,
         loader: async ({params}) => {
+          console.log("loader");
           let {path} = params
           let players = await invoke("get_players", {path: atob(path)})
           return players
         },
+        action: async ({request, params}) => {
+          console.log("action");
+          let {path} = params
+          let player = Object.fromEntries(await request.formData())
+          player.id = 0
+          player.tournament_id = 0
+          player.points = 0.0,
+          player.title = player.title === "" ? null : player.title
+          player.rating = parseInt(player.rating)
+          await invoke("add_player", {path: atob(path), player: player})
+          return null
+        }
       },
       {
         path: "round/:roundId",

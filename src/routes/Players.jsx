@@ -1,14 +1,26 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useRef, useState } from "react"
-import { useNavigate, useParams } from "react-router"
-import { useLoaderData } from "react-router-dom";
+import { useHref, useNavigate, useParams } from "react-router"
+import { Form, useFetcher, useLoaderData } from "react-router-dom";
 
 function Players() {
-    const {path} = useParams()
+    const fetcher = useFetcher()
+    const href = useHref()
     const formDialogRef = useRef(null);
-    const [players, setPlayers] = useState(useLoaderData())
-    const navigate = useNavigate()
-    
+    const [players, setPlayers] = useState([])
+
+    useEffect(() => {
+        if(fetcher.state === "idle" && !fetcher.data) {
+            fetcher.load(href)
+        }
+    }, [fetcher.state])
+
+    useEffect(() => {
+        if(fetcher.data) {
+            setPlayers(fetcher.data)
+        }
+    }, [fetcher.data])
+
     return (
         <>
             Jugadores
@@ -46,30 +58,9 @@ function Players() {
                 <button onClick={() => {
                     formDialogRef.current.close()
                 }}>x</button>
-                
-                <form onSubmit={async (e) => {
-                    e.preventDefault()
 
-                    let player = Object.fromEntries(new FormData(e.target))
-                    player.id = 0
-                    player.tournament_id = 0
-                    player.points = 0.0
-                    player.title = player.title === "" ? null : player.title
-                    player.rating = parseInt(player.rating)
-
-                    invoke("add_player", {path: atob(path), player: player})
-                        .then(() => {
-                            invoke("get_players", {path: atob(path)})
-                                .then((players) => {
-                                    setPlayers(players)
-                                })
-                                .catch((error) => {
-                                    console.error(error);
-                                    navigate("/error")
-                                })
-                        })
-                        .catch((error) => {console.error(error);})
-                        .finally(() => {formDialogRef.current.close()})
+                <fetcher.Form method="post" onSubmit={() => {
+                    formDialogRef.current.close()
                 }}>
                     <label htmlFor="name">Nombre</label>
                     <input type="text" name="name" id="name" required />
@@ -91,7 +82,7 @@ function Players() {
                     <input type="number" name="rating" id="rating" min={0} max={9999} defaultValue={0} />
 
                     <button type="submit">Agregar</button>
-                </form>
+                </fetcher.Form>
             </dialog>
         </>
     )

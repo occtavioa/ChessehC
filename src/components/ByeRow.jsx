@@ -5,7 +5,7 @@ function ByeRow({player, bye}) {
         <tr>
             <td>{player.id}</td>
             <td>{player.rating}</td>
-            <td>{player.title}</td>
+            <td>{player.title ?? <>-</>}</td>
             <td>{player.name}</td>
             <td>{getPointValue(bye.bye_point)}</td>
         </tr>

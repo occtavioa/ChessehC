@@ -24,7 +24,7 @@ function Standings() {
                             <tr key={i}>
                                 <td>{p.id}</td>
                                 <td>{p.rating}</td>
-                                <td>{p.title}</td>
+                                <td>{p.title ?? <>-</>}</td>
                                 <td>{p.name}</td>
                                 <td>{p.points}</td>
                             </tr>
