@@ -1,24 +1,23 @@
 import { useLoaderData } from "react-router"
 import GameRow from "../components/GameRow"
 import ByeRow from "../components/ByeRow"
+import { Table } from "react-bootstrap"
 
 function Pairings() {
     const {players, games, byes} = useLoaderData()
 
-    return (
-        <>
-            <table>
-                <caption>Partidas</caption>
-                <GameHeader />
-                <GameBody games={games} players={players} />
-            </table>
-            <table>
-                <caption>Byes</caption>
-                <ByeHeader />
-                <ByeBody byes={byes} players={players} />
-            </table>
-        </>
-    )
+    return (<>
+        <Table>
+            <caption>Partidas</caption>
+            <GameHeader />
+            <GameBody games={games} players={players} />
+        </Table>
+        <Table>
+            <caption>Byes</caption>
+            <ByeHeader />
+            <ByeBody byes={byes} players={players} />
+        </Table>
+    </>)
 }
 
 function ByeBody({byes, players}) {
@@ -67,14 +66,12 @@ function GameHeader() {
 }
 
 function GamePlayerHeader() {
-    return (
-        <>
-            <th>Id</th>
-            <th>Rating</th>
-            <th>Título</th>
-            <th>Nombre</th>
-        </>
-    )
+    return (<>
+        <th>Id</th>
+        <th>Rating</th>
+        <th>Título</th>
+        <th>Nombre</th>
+    </>)
 }
 
 function ByeHeader() {

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
+import { Button, FormSelect, Nav } from "react-bootstrap";
 import { Link, Outlet, useHref, useNavigate, useParams } from "react-router-dom"
 
 function TournamentLayout() {
@@ -20,6 +21,7 @@ function TournamentLayout() {
             .catch(e => {
                 console.error(e);
             })
+        
     }, [path])
     
     useEffect(() => {
@@ -27,31 +29,42 @@ function TournamentLayout() {
             navigate(`round/${selectedRoundId}/${href.split("/").at(-1)}`)
         }
     }, [selectedRoundId])
-    
-    return (
-        <>
-            <nav>
-                <Link to={`/`}>Inicio</Link>
-                <Link to={`.`}>Torneo</Link>
-                <Link to={`players`}>Jugadores</Link>
-                {
-                    rounds.length > 0 &&
-                        <select value={selectedRoundId} onChange={(e) => {setSelectedRoundId(parseInt(e.target.value))}}>
+
+    return (<>
+        <Nav variant="tabs">
+            <Nav.Item>
+                <Nav.Link as={Link} to={"/"}>Inicio</Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+                <Nav.Link as={Link} to={"."}>Torneo</Nav.Link>
+            </Nav.Item>
+            <Nav.Item>
+                <Nav.Link as={Link} to={"players"}>Jugadores</Nav.Link>
+            </Nav.Item>
+            {
+                rounds.length > 0 &&
+                    <Nav.Item>
+                        <FormSelect value={selectedRoundId} onChange={(e) => {setSelectedRoundId(parseInt(e.target.value))}}>
                             {
                                 rounds.map(r => 
                                     <option value={r.id} key={r.id}>Ronda {r.number}</option>
                                 )
                             }
-                        </select>
-                }
-                {
-                    selectedRoundId &&
-                        <>
-                            <Link to={`round/${selectedRoundId}/pairings`}>Pareos</Link>
-                            <Link to={`round/${selectedRoundId}/standings`}>Clasificación</Link>
-                        </>
-                }
-                <button onClick={async () => {
+                        </FormSelect>
+                    </Nav.Item>
+            }
+            {
+                selectedRoundId && (<>
+                    <Nav.Item>
+                        <Nav.Link as={Link} to={`round/${selectedRoundId}/pairings`}>Pareos</Nav.Link>
+                    </Nav.Item>
+                    <Nav.Item>
+                        <Nav.Link as={Link} to={`round/${selectedRoundId}/standings`}>Clasificación</Nav.Link>
+                    </Nav.Item>
+                </>)
+            }
+            <Nav.Item>
+                <Button onClick={async () => {
                     invoke("make_pairing", {path: atob(path)})
                         .then(() => {
                             invoke("get_rounds", {path: atob(path)})
@@ -68,11 +81,11 @@ function TournamentLayout() {
                         .catch((error) => {
                             console.error(error);
                         })
-                }}>Realizar pareo</button>
-            </nav>
-            <Outlet></Outlet>
-        </>
-    )
+                }}>Realizar pareo</Button>
+            </Nav.Item>
+        </Nav>
+        <Outlet></Outlet>
+    </>)
 }
 
 export default TournamentLayout;

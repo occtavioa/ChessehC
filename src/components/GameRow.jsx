@@ -2,6 +2,7 @@ import { useState } from "react"
 import { getPointValue } from "../utils"
 import { invoke } from "@tauri-apps/api"
 import { useParams } from "react-router"
+import { Button, Form } from "react-bootstrap"
 
 function GameRow({ white, black, game }) {
     const { path } = useParams()
@@ -14,7 +15,7 @@ function GameRow({ white, black, game }) {
                 {
                     state !== "Ongoing" ?
                         <>{getPointValue(state.at(0))} - {getPointValue(state.at(1))}</> :
-                        <form onSubmit={(e) => {
+                        <Form onSubmit={(e) => {
                             e.preventDefault()
                             let result = Object.fromEntries(new FormData(e.target))
                             let [whitePoint, blackPoint, ..._] = result.gameResult.split(',')
@@ -26,13 +27,13 @@ function GameRow({ white, black, game }) {
                                     console.error(e);
                                 })
                         }}>
-                            <select name="gameResult" defaultValue={"D,D"}>
+                            <Form.Select name="gameResult" defaultValue={"D,D"}>
                                 <option value={"W,L"}>{getPointValue("W")} - {getPointValue("L")}</option>
                                 <option value={"D,D"}>{getPointValue("D")} - {getPointValue("D")}</option>
                                 <option value={"L,W"}>{getPointValue("L")} - {getPointValue("W")}</option>
-                            </select>
-                            <button type="submit">Set</button>
-                        </form>
+                            </Form.Select>
+                            <Button type="submit">Set</Button>
+                        </Form>
                 }
             </td>
             <PlayerData player={black} />
@@ -41,14 +42,12 @@ function GameRow({ white, black, game }) {
 }
 
 function PlayerData({player}) {
-    return (
-        <>
-            <td>{player.id}</td>
-            <td>{player.rating}</td>
-            <td>{player.title ?? <>-</>}</td>
-            <td>{player.name}</td>
-        </>
-    )
+    return (<>
+        <td>{player.id}</td>
+        <td>{player.rating}</td>
+        <td>{player.title ?? <>-</>}</td>
+        <td>{player.name}</td>
+    </>)
 }
 
 export default GameRow

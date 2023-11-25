@@ -9,6 +9,7 @@ import Pairings from "./routes/Pairings";
 import Standings from "./routes/Standings";
 import Error from "./routes/Error";
 import { invoke } from "@tauri-apps/api";
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const router = createBrowserRouter([
   {

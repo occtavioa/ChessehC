@@ -1,3 +1,4 @@
+import { Table } from "react-bootstrap";
 import { useLoaderData } from "react-router-dom";
 
 function TournamentData() {
@@ -5,7 +6,7 @@ function TournamentData() {
 
     return (
         <>
-            <table>
+            <Table>
                 <thead>
                     <tr>
                         <th>Nombre</th>
@@ -18,7 +19,7 @@ function TournamentData() {
                         <td>{tournament.number_rounds}</td>
                     </tr>
                 </tbody>
-            </table>
+            </Table>
         </>
     )
 }
