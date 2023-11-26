@@ -1,7 +1,12 @@
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use super::{game::{Game, GameState}, bye::Bye, point::Point, title::Title};
+use super::{
+    bye::Bye,
+    game::{Game, GameState},
+    point::Point,
+    title::Title,
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Player {
@@ -10,7 +15,7 @@ pub struct Player {
     pub name: String,
     pub points: f64,
     pub rating: u16,
-    pub title: Option<Title>
+    pub title: Option<Title>,
 }
 
 impl Player {

@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::io;
+use std::{ffi::OsString, io};
 use tauri::InvokeError;
 
 use crate::trf;
@@ -9,7 +9,14 @@ pub enum InvokeErrorBind {
     Sqlite(String),
     Io(String),
     Tauri(String),
+    OsString(OsString),
     Other(String),
+}
+
+impl From<OsString> for InvokeErrorBind {
+    fn from(value: OsString) -> Self {
+        Self::OsString(value)
+    }
 }
 
 impl Into<InvokeError> for InvokeErrorBind {
@@ -25,6 +32,7 @@ impl ToString for InvokeErrorBind {
             Self::Other(s) => s.into(),
             Self::Sqlite(s) => s.into(),
             Self::Tauri(s) => s.into(),
+            _ => String::from("other"),
         }
     }
 }

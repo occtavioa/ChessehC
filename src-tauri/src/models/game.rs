@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use super::{point::GamePoint, player::Player};
+use super::{player::Player, point::GamePoint};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Game {
@@ -39,10 +39,13 @@ impl Game {
                 SET WhiteResult = (?1), BlackResult = (?2), Ongoing = FALSE
                 WHERE Id = (?3)
             ",
-            params![white_point, black_point, self.id]
+            params![white_point, black_point, self.id],
         )
     }
-    pub fn get_players(&self, connection: &Connection) -> Result<(Player, Player), rusqlite::Error> {
+    pub fn get_players(
+        &self,
+        connection: &Connection,
+    ) -> Result<(Player, Player), rusqlite::Error> {
         connection.query_row(
             "
                 SELECT w.*, b.*
@@ -52,21 +55,26 @@ impl Game {
                 WHERE gbr.Id = (?1)
             ",
             params![self.id],
-            |row| Ok((Player {
-                id: row.get(0)?,
-                tournament_id: row.get(1)?,
-                name: row.get(2)?,
-                points: row.get(3)?,
-                rating: row.get(4)?,
-                title: row.get(5)?
-            }, Player {
-                id: row.get(6)?,
-                tournament_id: row.get(7)?,
-                name: row.get(8)?,
-                points: row.get(9)?,
-                rating: row.get(10)?,
-                title: row.get(11)?
-            }))
+            |row| {
+                Ok((
+                    Player {
+                        id: row.get(0)?,
+                        tournament_id: row.get(1)?,
+                        name: row.get(2)?,
+                        points: row.get(3)?,
+                        rating: row.get(4)?,
+                        title: row.get(5)?,
+                    },
+                    Player {
+                        id: row.get(6)?,
+                        tournament_id: row.get(7)?,
+                        name: row.get(8)?,
+                        points: row.get(9)?,
+                        rating: row.get(10)?,
+                        title: row.get(11)?,
+                    },
+                ))
+            },
         )
     }
 }

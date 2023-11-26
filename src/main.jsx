@@ -26,6 +26,7 @@ const router = createBrowserRouter([
         loader: async ({params}) => {
           let {path} = params
           let tournament = await invoke("get_tournament", {path: atob(path)})
+          console.log(tournament);
           return tournament
         }
       },

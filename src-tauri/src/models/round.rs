@@ -1,7 +1,11 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use super::{bye::Bye, game::{Game, GameState}, player::Player};
+use super::{
+    bye::Bye,
+    game::{Game, GameState},
+    player::Player,
+};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Round {
@@ -123,14 +127,18 @@ impl Round {
         })?;
         byes_iter.collect()
     }
-    pub fn update_player_state(&self, player: &Player, connection: &Connection) -> Result<usize, rusqlite::Error> {
+    pub fn update_player_state(
+        &self,
+        player: &Player,
+        connection: &Connection,
+    ) -> Result<usize, rusqlite::Error> {
         connection.execute(
             "
                 UPDATE PlayerStateByRound
                 SET Points = (?1)
                 WHERE PlayerId = (?2) AND RoundId = (?3)
             ",
-            params![player.points, player.id, self.id]
+            params![player.points, player.id, self.id],
         )
     }
 }

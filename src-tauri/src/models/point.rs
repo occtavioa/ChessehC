@@ -1,6 +1,9 @@
-use rusqlite::{ToSql, types::{FromSql, FromSqlResult, FromSqlError}};
+use rusqlite::{
+    types::{FromSql, FromSqlError, FromSqlResult},
+    ToSql,
+};
 use serde::{Deserialize, Serialize};
-use std::str::{FromStr, from_utf8};
+use std::str::{from_utf8, FromStr};
 
 pub trait Point {
     fn get_value(&self) -> f64;

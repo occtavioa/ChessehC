@@ -1,6 +1,9 @@
 use std::{fmt::Display, str::from_utf8};
 
-use rusqlite::{types::{FromSql, FromSqlError}, ToSql};
+use rusqlite::{
+    types::{FromSql, FromSqlError},
+    ToSql,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -12,40 +15,48 @@ pub enum Title {
     FM,
     WGM,
     IM,
-    GM
+    GM,
 }
 
 pub enum Error {
-    ParseError
+    ParseError,
 }
 
 impl ToSql for Title {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        Ok(rusqlite::types::ToSqlOutput::Owned(rusqlite::types::Value::Text(self.to_string())))
+        Ok(rusqlite::types::ToSqlOutput::Owned(
+            rusqlite::types::Value::Text(self.to_string()),
+        ))
     }
 }
 
 impl FromSql for Title {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         match value {
-            rusqlite::types::ValueRef::Text(t) => Ok(Title::try_from(t).map_err(|_| FromSqlError::InvalidType)?),
-            _ => Err(FromSqlError::InvalidType)
+            rusqlite::types::ValueRef::Text(t) => {
+                Ok(Title::try_from(t).map_err(|_| FromSqlError::InvalidType)?)
+            }
+            _ => Err(FromSqlError::InvalidType),
         }
     }
 }
 
 impl Display for Title {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Self::WCM => "WCM",
-            Self::WFM => "WFM",
-            Self::CM => "CM",
-            Self::WIM => "WIM",
-            Self::FM => "FM",
-            Self::WGM => "WGM",
-            Self::IM => "IM",
-            Self::GM => "GM",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::WCM => "WCM",
+                Self::WFM => "WFM",
+                Self::CM => "CM",
+                Self::WIM => "WIM",
+                Self::FM => "FM",
+                Self::WGM => "WGM",
+                Self::IM => "IM",
+                Self::GM => "GM",
+            }
+        )
     }
 }
 
@@ -62,14 +73,14 @@ impl TryFrom<&str> for Title {
             "WGM" => Ok(Self::WGM),
             "IM" => Ok(Self::IM),
             "GM" => Ok(Self::GM),
-            _ => Err(Error::ParseError)
+            _ => Err(Error::ParseError),
         }
     }
 }
 
 impl TryFrom<&[u8]> for Title {
     type Error = Error;
-    
+
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Title::try_from(from_utf8(value).map_err(|_| Error::ParseError)?)
     }

@@ -1,7 +1,11 @@
-use rusqlite::{Connection, params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use super::{player::Player, round::Round, game::{Game, GameState}};
+use super::{
+    game::{Game, GameState},
+    player::Player,
+    round::Round,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Tournament {
@@ -70,7 +74,7 @@ impl Tournament {
                     name: row.get(2)?,
                     points: row.get(3)?,
                     rating: row.get(4)?,
-                    title: row.get(5)?
+                    title: row.get(5)?,
                 })
             },
         )
@@ -117,8 +121,17 @@ impl Tournament {
             )
             .optional()
     }
-    pub fn get_trf_config(&self) -> String {
+    pub fn get_partial_trf_config(&self) -> String {
         format!("XXC white1\r\nXXR {}", self.number_rounds)
+    }
+    pub fn get_trf_config(&self, connection: &Connection) -> Result<String, rusqlite::Error> {
+        let players = self.get_players(connection)?;
+        Ok(format!(
+            "012 {}\r\n062 {}\r\n072 {}\r\n",
+            self.name,
+            players.len(),
+            players.iter().filter(|p| p.rating > 0).count()
+        ))
     }
     pub fn update_current_round(&self, connection: &Connection) -> Result<usize, rusqlite::Error> {
         let mut current_round = self.get_current_round(connection)?.unwrap_or_default();
@@ -182,7 +195,11 @@ impl Tournament {
             )
             .optional()
     }
-    pub fn get_game_by_id(&self, game_id: i64, connection: &Connection) -> Result<Game, rusqlite::Error> {
+    pub fn get_game_by_id(
+        &self,
+        game_id: i64,
+        connection: &Connection,
+    ) -> Result<Game, rusqlite::Error> {
         connection.query_row(
             "
                 SELECT *
@@ -190,16 +207,18 @@ impl Tournament {
                 WHERE GameByRound.Id = (?1)
             ",
             params![game_id],
-            |row| Ok(Game {
-                id: row.get(0)?,
-                round_id: row.get(1)?,
-                white_id: row.get(2)?,
-                black_id: row.get(3)?,
-                state: match row.get(4)? {
-                    true => GameState::Ongoing,
-                    false => GameState::Finished(row.get(5)?, row.get(6)?),
-                },
-            })
+            |row| {
+                Ok(Game {
+                    id: row.get(0)?,
+                    round_id: row.get(1)?,
+                    white_id: row.get(2)?,
+                    black_id: row.get(3)?,
+                    state: match row.get(4)? {
+                        true => GameState::Ongoing,
+                        false => GameState::Finished(row.get(5)?, row.get(6)?),
+                    },
+                })
+            },
         )
     }
 }

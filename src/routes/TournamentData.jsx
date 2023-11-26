@@ -1,11 +1,22 @@
-import { Table } from "react-bootstrap";
-import { useLoaderData } from "react-router-dom";
+import { invoke } from "@tauri-apps/api";
+import { Button, Table } from "react-bootstrap";
+import { useLoaderData, useParams } from "react-router-dom";
 
 function TournamentData() {
+    const {path} = useParams()
     let tournament = useLoaderData()
 
     return (
         <>
+            <Button onClick={() => {
+                invoke("make_trf_file", {path: atob(path)})
+                    .then((trfPath) => {
+                        console.log("TRF exported at", trfPath);
+                    })
+                    .catch((e) => {
+                        console.error(e);
+                    })
+            }}>Exportar archivo TRF</Button>
             <Table>
                 <thead>
                     <tr>

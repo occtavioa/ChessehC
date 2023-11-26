@@ -1,7 +1,7 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use super::{point::ByePoint, player::Player};
+use super::{player::Player, point::ByePoint};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Bye {

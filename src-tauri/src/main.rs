@@ -13,21 +13,28 @@ const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "ou
 const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
 use db::{create_schema, insert_tournament, open_not_create, select_tournament};
-use models::{tournament::Tournament, player::Player, round::Round, bye::Bye, point::{ByePoint, GamePoint}, game::{Game, GameState}};
+use models::{
+    bye::Bye,
+    game::{Game, GameState},
+    player::{self, Player},
+    point::{ByePoint, GamePoint},
+    round::Round,
+    tournament::Tournament,
+};
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
 use std::{
     fs::{remove_file, File, OpenOptions},
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 use tauri::{
     api::path::{resolve_path, BaseDirectory},
     AppHandle, Env, Manager,
 };
-use trf::get_players_lines;
+use trf::{get_partial_players_lines, get_players_lines};
 use types::InvokeErrorBind;
-use utils::{sort_players_initial, sort_players_ranked};
+use utils::{helper, sort_players_initial, sort_players_ranked};
 
 #[tauri::command]
 async fn pick_tournament_file() -> Option<PathBuf> {
@@ -121,7 +128,7 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
             return Err("Ongoing round".into());
         }
         if r.number >= tournament.number_rounds {
-            return Err("Number of rounds reached".into())
+            return Err("Number of rounds reached".into());
         }
     }
     let mut players = tournament.get_players(&connection)?;
@@ -137,8 +144,8 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
 
     let rounds = tournament.get_rounds(&connection)?;
 
-    let trf_players_lines: Vec<String> = get_players_lines(&players, &rounds, &connection)?;
-    let trf_config: String = tournament.get_trf_config();
+    let trf_players_lines: Vec<String> = get_partial_players_lines(&players, &rounds, &connection)?;
+    let trf_config: String = tournament.get_partial_trf_config();
     let mut buff_input = BufWriter::new(
         OpenOptions::new()
             .truncate(true)
@@ -150,18 +157,17 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     buff_input.write(format! {"{}\r\n", trf_players_lines.join("\r\n")}.as_bytes())?;
     buff_input.flush()?;
 
-    let output = execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path)
-        .await?;
+    let output = execute_bbp(&bbp_input_file_path, &bbp_exec_path, &bbp_output_file_path).await?;
 
     match output.code() {
-        Some(0) => {},
-        Some(1) => {return Err("No valid pairing".into())},
-        Some(3) => {return Err("Invalid request".into())},
-        Some(4) => {return Err("Data size could not be handled".into())},
-        Some(5) => {return Err("Error on file acces".into())},
-        _ => {return Err("Unexpected error".into())}
+        Some(0) => {}
+        Some(1) => return Err("No valid pairing".into()),
+        Some(3) => return Err("Invalid request".into()),
+        Some(4) => return Err("Data size could not be handled".into()),
+        Some(5) => return Err("Error on file acces".into()),
+        _ => return Err("Unexpected error".into()),
     }
-        
+
     let mut output_file = File::open(&bbp_output_file_path)?;
     let id_pairs: Vec<(u16, u16)> = parse_bbp_output(&mut output_file)?;
     if id_pairs.is_empty() {
@@ -242,7 +248,10 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
 }
 
 #[tauri::command]
-async fn get_pairings_by_round(round_id: i64, path: PathBuf) -> Result<(Vec<Game>, Vec<Bye>), InvokeErrorBind> {
+async fn get_pairings_by_round(
+    round_id: i64,
+    path: PathBuf,
+) -> Result<(Vec<Game>, Vec<Bye>), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let round: Round = select_tournament(&connection)?
         .get_round_by_id(round_id, &connection)?
@@ -271,16 +280,23 @@ async fn get_rounds(path: PathBuf) -> Result<Vec<Round>, InvokeErrorBind> {
 }
 
 #[tauri::command]
-async fn set_game_result(game_id: i64, white_point: GamePoint, black_point: GamePoint, path: PathBuf) -> Result<(), InvokeErrorBind> {
+async fn set_game_result(
+    game_id: i64,
+    white_point: GamePoint,
+    black_point: GamePoint,
+    path: PathBuf,
+) -> Result<(), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let tournament: Tournament = select_tournament(&connection)?;
     let game: Game = tournament.get_game_by_id(game_id, &connection)?;
     if matches!(game.state, GameState::Finished(_, _)) {
-        return Err("Game result already set".into())
+        return Err("Game result already set".into());
     }
-    let current_round = tournament.get_current_round(&connection)?.ok_or("No current round")?;
+    let current_round = tournament
+        .get_current_round(&connection)?
+        .ok_or("No current round")?;
     if current_round.id != game.round_id {
-        return Err("Invalid round".into())
+        return Err("Invalid round".into());
     }
     game.update_result(&white_point, &black_point, &connection)?;
     let (mut white, mut black) = game.get_players(&connection)?;
@@ -292,11 +308,54 @@ async fn set_game_result(game_id: i64, white_point: GamePoint, black_point: Game
 }
 
 #[tauri::command]
-async fn get_game_players(game_id: i64, path: PathBuf) -> Result<(Player, Player), InvokeErrorBind> {
+async fn get_game_players(
+    game_id: i64,
+    path: PathBuf,
+) -> Result<(Player, Player), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let tournament = select_tournament(&connection)?;
     let game = tournament.get_game_by_id(game_id, &connection)?;
     Ok(game.get_players(&connection)?)
+}
+
+#[tauri::command]
+async fn make_trf_file(path: PathBuf, app: AppHandle) -> Result<String, InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let tournament = select_tournament(&connection)?;
+    let rounds = tournament.get_rounds(&connection)?;
+    let mut players = tournament.get_players(&connection)?;
+    sort_players_ranked(&mut players);
+    let mut players: Vec<(usize, Player)> = players
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (i + 1, p))
+        .collect();
+    helper(&mut players);
+    let players: Vec<(usize, usize, Player)> = players
+        .into_iter()
+        .enumerate()
+        .map(|(i, (f, p))| (i + 1, f, p))
+        .collect();
+
+    let tournament_data = tournament.get_trf_config(&connection)?;
+    let players_lines = get_players_lines(&players, &rounds, &connection)?;
+
+    let desktop_path = get_desktop_path(&app)?;
+    let mut trf_path = desktop_path.join(tournament.name);
+    trf_path.set_extension("trf");
+
+    let mut buff_trf = BufWriter::new(
+        OpenOptions::new()
+            .truncate(true)
+            .write(true)
+            .create(true)
+            .open(&trf_path)?,
+    );
+    buff_trf.write(format! {"{}", tournament_data}.as_bytes())?;
+    buff_trf.write(format! {"{}\r\n", players_lines.join("\r\n")}.as_bytes())?;
+    buff_trf.flush()?;
+
+    Ok(trf_path.into_os_string().into_string()?)
 }
 
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
@@ -332,6 +391,16 @@ fn get_bbp_exec_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
     Ok(exec_path)
 }
 
+fn get_desktop_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
+    Ok(resolve_path(
+        &app.config(),
+        &app.package_info(),
+        &Env::default(),
+        "",
+        Some(BaseDirectory::Desktop),
+    )?)
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -365,7 +434,8 @@ fn main() {
             get_pairings_by_round,
             get_rounds,
             set_game_result,
-            get_game_players
+            get_game_players,
+            make_trf_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
