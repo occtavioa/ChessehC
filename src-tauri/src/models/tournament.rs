@@ -45,15 +45,15 @@ impl Tournament {
             "
                 INSERT INTO Player
                 VALUES (
-                    NULL,
                     (?1),
                     (?2),
-                    0,
                     (?3),
-                    (?4)
+                    0,
+                    (?4),
+                    (?5)
                 )
             ",
-            params![self.id, player.name, player.rating, player.title],
+            params![player.id, self.id, player.name, player.rating, player.title],
         )
     }
     pub fn get_last_added_player(

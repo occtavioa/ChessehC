@@ -40,12 +40,32 @@ const router = createBrowserRouter([
         },
         action: async ({request, params}) => {
           let {path} = params
+          let tournament = await invoke("get_tournament", {path: atob(path)})
           let player = Object.fromEntries(await request.formData())
-          player.id = 0
-          player.tournament_id = 0
+          player.tournament_id = tournament.id
           player.points = 0.0,
           player.title = player.title === "" ? null : player.title
           player.rating = parseInt(player.rating)
+
+          const {Id} = await fetch("http://localhost:5000/players", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              tournamentId: player.tournament_id,
+              name: player.name,
+              title: player.title,
+              rating: player.rating
+            })
+          })
+            .then((res) => res.json())
+            .catch((e) => {
+              console.error(e);
+              return 0
+            })
+
+          player.id = Id;
           await invoke("add_player", {path: atob(path), player: player})
           return null
         }

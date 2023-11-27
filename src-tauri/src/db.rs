@@ -68,13 +68,13 @@ pub fn insert_tournament(tournament: &Tournament, connection: &Connection) -> Re
         "
         INSERT INTO \"Tournament\" VALUES
         (
-            NULL,
             (?1),
             (?2),
+            (?3),
             NULL
         )
         ",
-        params![&tournament.name, &tournament.number_rounds,],
+        params![&tournament.id, &tournament.name, &tournament.number_rounds,],
     )
 }
 
