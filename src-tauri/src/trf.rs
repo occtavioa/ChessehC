@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 
 use crate::models::{
-    game::GameState, player::Player, point::GamePoint, round::Round, title::Title,
+    game::GameState, player::Player, point::GamePoint, round::Round,
 };
 
 pub enum Error {

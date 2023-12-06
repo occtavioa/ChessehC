@@ -57,16 +57,16 @@ impl Round {
             "
                 INSERT INTO GameByRound
                 VALUES (
-                    NULL,
                     (?1),
                     (?2),
                     (?3),
+                    (?4),
                     TRUE,
                     NULL,
                     NULL
                 )
             ",
-            params![self.id, game.white_id, game.black_id],
+            params![game.id, self.id, game.white_id, game.black_id],
         )
     }
     pub fn get_standings(&self, connection: &Connection) -> Result<Vec<Player>, rusqlite::Error> {
