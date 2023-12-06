@@ -23,14 +23,15 @@ use models::{
 };
 use pairing::{execute_bbp, parse_bbp_output};
 use rusqlite::Connection;
+use serde_json::{Value, Map};
 use std::{
     fs::{remove_file, File, OpenOptions},
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, sync::Mutex,
 };
 use tauri::{
-    api::path::{resolve_path, BaseDirectory},
-    AppHandle, Env, Manager,
+    api::{path::{resolve_path, BaseDirectory}, http::{ClientBuilder, Client, HttpRequestBuilder, Body}},
+    AppHandle, Env, Manager, State,
 };
 use trf::{get_partial_players_lines, get_players_lines};
 use types::InvokeErrorBind;
@@ -107,7 +108,7 @@ async fn get_current_round(path: PathBuf) -> Result<Option<Round>, InvokeErrorBi
 }
 
 #[tauri::command]
-async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorBind> {
+async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) -> Result<u16, InvokeErrorBind> {
     let connection: Connection = open_not_create(&path).await?;
     let bbp_exec_path: PathBuf = get_bbp_exec_path(&app)?;
     if !bbp_exec_path.exists() {
@@ -182,7 +183,7 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
             .unwrap_or((id_pairs.len(), &(0, 0)))
             .0,
     );
-    let games: Vec<Game> = game_pairs
+    let mut games: Vec<Game> = game_pairs
         .iter()
         .map(|&(w, b)| {
             let white = &players
@@ -220,6 +221,22 @@ async fn make_pairing(path: PathBuf, app: AppHandle) -> Result<u16, InvokeErrorB
     let current_round = tournament
         .get_current_round(&connection)?
         .ok_or("Error updating round")?;
+
+    for g in &mut games {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("tournamentId"), Value::from(tournament.id));
+        req_map.insert(String::from("round"), Value::from(current_round.number));
+        req_map.insert(String::from("whiteId"), Value::from(g.white_id));
+        req_map.insert(String::from("blackId"), Value::from(g.black_id));
+        req_map.insert(String::from("whitePoint"), Value::Null);
+        req_map.insert(String::from("blackPoint"), Value::Null);
+        req_map.insert(String::from("ongoing"), Value::from(true));
+        let req = HttpRequestBuilder::new("POST", "http://localhost:5000/games").unwrap().body(Body::Json(Value::from(req_map)));
+        let res = client.send(req).await.unwrap();
+        let mut res_data = res.read().await.unwrap();
+        let g_id = res_data.data["Id"].take().as_i64();
+        g.id = g_id.unwrap_or_default();
+    }
 
     games
         .into_iter()
@@ -403,6 +420,7 @@ fn get_desktop_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
 
 fn main() {
     tauri::Builder::default()
+        .manage::<Client>(ClientBuilder::new().build().unwrap())
         .setup(|app| {
             let bbp_output_file_path = get_bbp_output_file_path(&app.handle())?;
             if !bbp_output_file_path.exists() {
