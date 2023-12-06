@@ -202,7 +202,7 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
             Ok(Game::new(white.id, black.id))
         })
         .collect::<Result<Vec<Game>, String>>()?;
-    let byes: Vec<Bye> = bye_pairs
+    let mut byes: Vec<Bye> = bye_pairs
         .iter()
         .map(|&(p, b)| {
             if b != 0 {
@@ -232,12 +232,13 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
         req_map.insert(String::from("blackPoint"), Value::Null);
         req_map.insert(String::from("ongoing"), Value::from(true));
         let req = HttpRequestBuilder::new("POST", "http://localhost:5000/games").unwrap().body(Body::Json(Value::from(req_map)));
-        let res = client.send(req).await.unwrap();
-        let mut res_data = res.read().await.unwrap();
-        let g_id = res_data.data["Id"].take().as_i64();
-        g.id = g_id.unwrap_or_default();
+        if let Ok(res) = client.send(req).await {
+            let mut res_data = res.read().await.unwrap();
+            let game_id = res_data.data["Id"].take().as_i64();
+            g.id = game_id.unwrap_or_default();
+        }
     }
-
+    
     games
         .into_iter()
         .map(|g| current_round.add_game(&g, &connection))
@@ -246,6 +247,16 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
         .map(|b| current_round.add_bye(b, &connection))
         .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
 
+    for b in &mut byes {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("tournamentId"), Value::from(tournament.id));
+        req_map.insert(String::from("round"), Value::from(current_round.number));
+        req_map.insert(String::from("playerId"), Value::from(b.player_id));
+        req_map.insert(String::from("byePoint"), Value::from(b.bye_point.to_string()));
+        let req = HttpRequestBuilder::new("POST", "http://localhost:5000/byes").unwrap().body(Body::Json(Value::from(req_map)));
+        let _ = client.send(req).await;
+    }
+    
     let byes = current_round.get_byes(&connection)?;
     byes.into_iter()
         .map(|b| {
