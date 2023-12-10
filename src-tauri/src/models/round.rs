@@ -69,6 +69,23 @@ impl Round {
             params![game.id, self.id, game.white_id, game.black_id],
         )
     }
+    pub fn add_game_autoinc_id(&self, game: &Game, connection: &Connection) -> Result<usize, rusqlite::Error> {
+        connection.execute(
+            "
+                INSERT INTO GameByRound
+                VALUES (
+                    NULL,
+                    (?1),
+                    (?2),
+                    (?3),
+                    TRUE,
+                    NULL,
+                    NULL
+                )
+            ",
+            params![self.id, game.white_id, game.black_id],
+        )
+    }
     pub fn get_standings(&self, connection: &Connection) -> Result<Vec<Player>, rusqlite::Error> {
         let mut statement = connection.prepare(
             "

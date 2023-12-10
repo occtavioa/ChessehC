@@ -5,6 +5,7 @@ use rusqlite::{
     ToSql,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Title {
@@ -20,6 +21,12 @@ pub enum Title {
 
 pub enum Error {
     ParseError,
+}
+
+impl Into<Value> for Title {
+    fn into(self) -> Value {
+        Value::String(self.to_string())
+    }
 }
 
 impl ToSql for Title {

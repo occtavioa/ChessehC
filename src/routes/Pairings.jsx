@@ -6,18 +6,20 @@ import { Table } from "react-bootstrap"
 function Pairings() {
     const {players, games, byes} = useLoaderData()
 
-    return (<>
-        <Table>
-            <caption>Partidas</caption>
-            <GameHeader />
-            <GameBody games={games} players={players} />
-        </Table>
-        <Table>
-            <caption>Byes</caption>
-            <ByeHeader />
-            <ByeBody byes={byes} players={players} />
-        </Table>
-    </>)
+    return (
+        <>
+            <Table>
+                <caption>Partidas</caption>
+                <GameHeader />
+                <GameBody games={games} players={players} />
+            </Table>
+            <Table>
+                <caption>Byes</caption>
+                <ByeHeader />
+                <ByeBody byes={byes} players={players} />
+            </Table>
+        </>
+    )
 }
 
 function ByeBody({byes, players}) {

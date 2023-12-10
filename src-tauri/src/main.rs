@@ -7,12 +7,14 @@ mod pairing;
 mod trf;
 mod types;
 mod utils;
+mod http;
 
 const BBP_INPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "input");
 const BBP_OUTPUT_FILE_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "output");
 const BBP_PAIRINGS_DIR_PATH: (BaseDirectory, &str) = (BaseDirectory::Desktop, "bbpPairings-v5.0.1");
 
 use db::{create_schema, insert_tournament, open_not_create, select_tournament};
+use http::{post_player, post_standing};
 use models::{
     bye::Bye,
     game::{Game, GameState},
@@ -27,7 +29,7 @@ use serde_json::{Value, Map};
 use std::{
     fs::{remove_file, File, OpenOptions},
     io::{BufWriter, Write},
-    path::{Path, PathBuf}, sync::Mutex,
+    path::{Path, PathBuf}, sync::Mutex, collections::HashMap,
 };
 use tauri::{
     api::{path::{resolve_path, BaseDirectory}, http::{ClientBuilder, Client, HttpRequestBuilder, Body}},
@@ -45,27 +47,26 @@ async fn pick_tournament_file() -> Option<PathBuf> {
 }
 
 #[tauri::command]
-async fn create_tournament(tournament: Tournament) -> Result<Option<PathBuf>, InvokeErrorBind> {
+async fn save_tournament_file(name: String) -> Option<PathBuf> {
+    tauri::api::dialog::blocking::FileDialogBuilder::new()
+        .set_file_name(&name)
+        .add_filter("chessehc tournament file", &["ctf"])
+        .save_file()
+}
+
+#[tauri::command]
+async fn create_tournament(tournament: Tournament, path: PathBuf) -> Result<Option<PathBuf>, InvokeErrorBind> {
     if tournament.name.is_empty() || tournament.number_rounds < 5 {
         return Err("Invalid input".into());
     }
-    match tauri::api::dialog::blocking::FileDialogBuilder::new()
-        .set_file_name(&tournament.name)
-        .add_filter("chessehc tournament file", &["ctf"])
-        .save_file()
-    {
-        None => Ok(None),
-        Some(path) => {
-            if path.exists() {
-                remove_file(&path)?;
-            }
-            File::create(&path)?;
-            let connection = Connection::open(&path)?;
-            create_schema(&connection)?;
-            insert_tournament(&tournament, &connection)?;
-            Ok(Some(path))
-        }
+    if path.exists() {
+        remove_file(&path)?;
     }
+    File::create(&path)?;
+    let connection = Connection::open(&path)?;
+    create_schema(&connection)?;
+    insert_tournament(&tournament, &connection)?;
+    Ok(Some(path))
 }
 
 #[tauri::command]
@@ -82,11 +83,19 @@ async fn get_players(path: PathBuf) -> Result<Vec<Player>, InvokeErrorBind> {
 }
 
 #[tauri::command]
-async fn add_player(path: PathBuf, player: Player) -> Result<Player, InvokeErrorBind> {
+async fn add_player(path: PathBuf, mut player: Player, client: State<'_, Client>) -> Result<Player, InvokeErrorBind> {
     let connection: Connection = open_not_create(&path).await?;
     let tournament: Tournament = select_tournament(&connection)?;
-    tournament.add_player(&player, &connection)?;
-    let mut player: Player = tournament.get_last_added_player(&connection)?;
+    player.tournament_id = tournament.id;
+    let post_result = post_player(&player, &client).await;
+    if let Ok(mut data) = post_result {
+        let id = data["Id"].take().as_i64().unwrap();
+        player.id = id;
+        tournament.add_player(&player, &connection)?;
+    } else {
+        tournament.add_player_autoinc_id(&player, &connection)?;
+        player = tournament.get_last_added_player(&connection)?;
+    }
     let rounds: Vec<Round> = tournament.get_rounds(&connection)?;
     rounds
         .iter()
@@ -98,6 +107,18 @@ async fn add_player(path: PathBuf, player: Player) -> Result<Player, InvokeError
             Ok(())
         })
         .collect::<Result<(), rusqlite::Error>>()?;
+    for r in &rounds {
+        post_standing(r, &player, &client).await;
+        {
+            let mut req_map = Map::new();
+            req_map.insert(String::from("tournamentId"), Value::from(tournament.id));
+            req_map.insert(String::from("round"), Value::from(r.number));
+            req_map.insert(String::from("playerId"), Value::from(player.id));
+            req_map.insert(String::from("byePoint"), Value::from(ByePoint::Z.to_string()));
+            let req = HttpRequestBuilder::new("POST", "http://localhost:5000/byes").unwrap().body(Body::Json(Value::from(req_map)));
+            let _ = client.send(req).await;
+        }
+    }
     Ok::<Player, InvokeErrorBind>(player)
 }
 
@@ -218,10 +239,20 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
         .collect::<Result<Vec<Bye>, String>>()?;
 
     tournament.update_current_round(&connection)?;
-    let current_round = tournament
+    let current_round: Round = tournament
         .get_current_round(&connection)?
         .ok_or("Error updating round")?;
 
+    {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("round"), Value::from(current_round.number));
+        let mut req_url = String::from("http://localhost:5000/tournaments/");
+        req_url.push_str(&tournament.id.to_string());
+        req_url.push_str("/round");
+        let req = HttpRequestBuilder::new("PUT", &req_url).unwrap().body(Body::Json(Value::from(req_map)));
+        let _ = client.send(req).await;
+    }
+        
     for g in &mut games {
         let mut req_map = Map::new();
         req_map.insert(String::from("tournamentId"), Value::from(tournament.id));
@@ -234,15 +265,14 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
         let req = HttpRequestBuilder::new("POST", "http://localhost:5000/games").unwrap().body(Body::Json(Value::from(req_map)));
         if let Ok(res) = client.send(req).await {
             let mut res_data = res.read().await.unwrap();
-            let game_id = res_data.data["Id"].take().as_i64();
-            g.id = game_id.unwrap_or_default();
+            let game_id = res_data.data["Id"].take().as_i64().unwrap();
+            g.id = game_id;
+            current_round.add_game(g, &connection)?;
+        } else {
+            current_round.add_game_autoinc_id(g, &connection)?;
         }
     }
-    
-    games
-        .into_iter()
-        .map(|g| current_round.add_game(&g, &connection))
-        .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
+
     byes.iter()
         .map(|b| current_round.add_bye(b, &connection))
         .collect::<Result<Vec<usize>, rusqlite::Error>>()?;
@@ -267,6 +297,15 @@ async fn make_pairing(path: PathBuf, app: AppHandle, client: State<'_, Client>) 
         .collect::<Result<(), rusqlite::Error>>()?;
 
     let players = tournament.get_players(&connection)?;
+    for p in &players {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("tournamentId"), Value::from(p.tournament_id));
+        req_map.insert(String::from("round"), Value::from(current_round.number));
+        req_map.insert(String::from("playerId"), Value::from(p.id));
+        req_map.insert(String::from("points"), Value::from(p.points));
+        let req = HttpRequestBuilder::new("POST", "http://localhost:5000/standings").unwrap().body(Body::Json(Value::from(req_map)));
+        let _ = client.send(req).await;
+    }
     players
         .into_iter()
         .map(|p| current_round.add_player_state(&p, &connection))
@@ -313,6 +352,7 @@ async fn set_game_result(
     white_point: GamePoint,
     black_point: GamePoint,
     path: PathBuf,
+    client: State<'_, Client>
 ) -> Result<(), InvokeErrorBind> {
     let connection = open_not_create(&path).await?;
     let tournament: Tournament = select_tournament(&connection)?;
@@ -332,6 +372,47 @@ async fn set_game_result(
     black.sum_point(&black_point, &connection)?;
     current_round.update_player_state(&white, &connection)?;
     current_round.update_player_state(&black, &connection)?;
+    {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("id"), Value::from(game.id));
+        req_map.insert(String::from("whitePoint"), Value::from(white_point.to_string()));
+        req_map.insert(String::from("blackPoint"), Value::from(black_point.to_string()));
+        let mut req_string = String::from("http://localhost:5000/games/");
+        req_string.push_str(&game.id.to_string());
+        let req = HttpRequestBuilder::new("PUT", &req_string).unwrap().body(Body::Json(Value::from(req_map)));
+        let res = client.send(req).await;
+        println!("{:?}", res);
+    }
+    {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("points"), Value::from(white.points));
+        
+        let req_string = String::from("http://localhost:5000/standings/");
+
+        let mut query_params: HashMap<String, String> = HashMap::new();
+        query_params.insert(String::from("tournamentId"), tournament.id.to_string());
+        query_params.insert(String::from("playerId"), white.id.to_string());
+        query_params.insert(String::from("round"), current_round.number.to_string());
+
+        let req = HttpRequestBuilder::new("PUT", &req_string).unwrap().body(Body::Json(Value::from(req_map))).query(query_params);
+        let res = client.send(req).await;
+        println!("{:?}", res);
+    }
+    {
+        let mut req_map = Map::new();
+        req_map.insert(String::from("points"), Value::from(black.points));
+        
+        let req_string = String::from("http://localhost:5000/standings/");
+
+        let mut query_params: HashMap<String, String> = HashMap::new();
+        query_params.insert(String::from("tournamentId"), tournament.id.to_string());
+        query_params.insert(String::from("playerId"), black.id.to_string());
+        query_params.insert(String::from("round"), current_round.number.to_string());
+
+        let req = HttpRequestBuilder::new("PUT", &req_string).unwrap().body(Body::Json(Value::from(req_map))).query(query_params);
+        let res = client.send(req).await;
+        println!("{:?}", res);
+    }
     Ok(())
 }
 
@@ -464,7 +545,8 @@ fn main() {
             get_rounds,
             set_game_result,
             get_game_players,
-            make_trf_file
+            make_trf_file,
+            save_tournament_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

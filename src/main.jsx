@@ -46,27 +46,12 @@ const router = createBrowserRouter([
           player.points = 0.0,
           player.title = player.title === "" ? null : player.title
           player.rating = parseInt(player.rating)
-
-          const {Id} = await fetch("http://localhost:5000/players", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              tournamentId: player.tournament_id,
-              name: player.name,
-              title: player.title,
-              rating: player.rating
-            })
-          })
-            .then((res) => res.json())
-            .catch((e) => {
-              console.error(e);
-              return 0
-            })
-
-          player.id = Id;
-          await invoke("add_player", {path: atob(path), player: player})
+          player.id = 0;
+          try {
+            await invoke("add_player", {path: atob(path), player: player})
+          } catch (error) {
+            console.error(error);
+          }
           return null
         }
       },

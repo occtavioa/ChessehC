@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
-import { Button, FormSelect, Nav } from "react-bootstrap";
+import { Alert, Badge, Button, FormSelect, Nav } from "react-bootstrap";
 import { Link, Outlet, useHref, useNavigate, useParams } from "react-router-dom"
 
 function TournamentLayout() {
@@ -9,14 +9,15 @@ function TournamentLayout() {
     const [selectedRoundId, setSelectedRoundId] = useState()
     const href = useHref()
     const navigate = useNavigate()
+    const [makePairingResult, setMakePairingResult] = useState()
     
     useEffect(() => {
         invoke("get_rounds", {path: atob(path)})
             .then((rounds) => {
-                if(rounds.length > 0) {
-                    setRounds(rounds)
-                    setSelectedRoundId(rounds.at(-1).id)
-                }
+                if(rounds.length <= 0)
+                    return
+                setRounds(rounds)
+                setSelectedRoundId(rounds.at(-1).id)
             })
             .catch(e => {
                 console.error(e);
@@ -25,6 +26,7 @@ function TournamentLayout() {
     }, [path])
     
     useEffect(() => {
+        console.log(selectedRoundId);
         if(roundId && selectedRoundId) {
             navigate(`round/${selectedRoundId}/${href.split("/").at(-1)}`)
         }
@@ -65,25 +67,28 @@ function TournamentLayout() {
             }
             <Nav.Item>
                 <Button onClick={async () => {
-                    invoke("make_pairing", {path: atob(path)})
-                        .then(() => {
-                            invoke("get_rounds", {path: atob(path)})
-                                .then((rounds) => {
-                                    setRounds(rounds)
-                                    if(!selectedRoundId) {
-                                        setSelectedRoundId(rounds.at(-1).id)
-                                    }
-                                })
-                                .catch(e => {
-                                    console.error(e);
-                                })
-                        })
-                        .catch((error) => {
-                            console.error(error);
-                        })
+                    try {
+                        await invoke("make_pairing", {path: atob(path)})
+                        let rounds = await invoke("get_rounds", {path: atob(path)})
+                        let currentRound = rounds.at(-1)
+                        setRounds(rounds)
+                        setSelectedRoundId(currentRound.id)
+                        setMakePairingResult({type: "success", message: `Ronda ${currentRound.number} creada`})
+                    } catch (error) {
+                        console.error(error);
+                        setMakePairingResult({type: "error", message: error})
+                    }
                 }}>Realizar pareo</Button>
             </Nav.Item>
         </Nav>
+        {
+            typeof makePairingResult !== "undefined"
+            && (
+            <Alert variant={makePairingResult.type === "success" ? "success" : "danger"}>
+                {makePairingResult.message}
+            </Alert>
+        )
+        }
         <Outlet></Outlet>
     </>)
 }

@@ -56,6 +56,26 @@ impl Tournament {
             params![player.id, self.id, player.name, player.rating, player.title],
         )
     }
+    pub fn add_player_autoinc_id(
+        &self,
+        player: &Player,
+        connection: &Connection,
+    ) -> Result<usize, rusqlite::Error> {
+        connection.execute(
+            "
+                INSERT INTO Player
+                VALUES (
+                    NULL,
+                    (?1),
+                    (?2),
+                    0,
+                    (?3),
+                    (?4)
+                )
+            ",
+            params![player.tournament_id, player.name, player.rating, player.title],
+        )
+    }
     pub fn get_last_added_player(
         &self,
         connection: &Connection,
