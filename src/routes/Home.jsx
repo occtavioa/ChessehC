@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Form, Image, Modal } from "react-bootstrap";
 import { useNavigate} from "react-router-dom";
+import logo from "../assets/logo.png"
 
 function Home() {
     const [showFormModal, setShowFormModal] = useState(false);
@@ -37,7 +38,7 @@ function Home() {
             )
         }
 
-        <Image src="" alt="Logo"></Image>
+        <Image src={logo} alt="Logo"></Image>
 
         <Button onClick={() => {
             setShowFormModal(true)
