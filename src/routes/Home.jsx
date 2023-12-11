@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Form, Modal } from "react-bootstrap";
+import { Alert, Button, Form, Image, Modal } from "react-bootstrap";
 import { useNavigate} from "react-router-dom";
 
 function Home() {
@@ -37,7 +37,7 @@ function Home() {
             )
         }
 
-        <img src="" alt="chessehc-logo" />
+        <Image src="" alt="Logo"></Image>
 
         <Button onClick={() => {
             setShowFormModal(true)

@@ -1,10 +1,41 @@
-import { Table } from "react-bootstrap";
+import { useEffect, useState } from "react";
+import { Alert, AlertHeading, ListGroup, Table } from "react-bootstrap";
 import { useLoaderData } from "react-router";
 
 function Standings() {
-    const standings = useLoaderData()
-    
+    const {standings, status} = useLoaderData()
+    const [podium, setPodium] = useState([])
+
+    useEffect(() => {
+        if(status === "Finished")
+            setPodium(standings.slice(0, 3))
+    }, [status])
+
     return (<>
+        {
+            status === "Finished"
+            && (
+                <Alert variant="success">
+                    <Alert.Heading>
+                        Clasificación final
+                    </Alert.Heading>
+                    <ListGroup>
+                        <ListGroup.Item>
+                            <i className="bi bi-1-circle-fill"></i>
+                            <p>1er puesto: {standings[0].name}</p>
+                        </ListGroup.Item>
+                        <ListGroup.Item>
+                            <i className="bi bi-2-circle-fill"></i>
+                            <p>2do puesto: {standings[1].name}</p>
+                        </ListGroup.Item>
+                        <ListGroup.Item>
+                            <i className="bi bi-3-circle-fill"></i>
+                            <p>3er puesto: {standings[2].name}</p>
+                        </ListGroup.Item>
+                    </ListGroup>
+                </Alert>
+            )
+        }
         <Table>
             <caption>Clasificación</caption>
             <thead>

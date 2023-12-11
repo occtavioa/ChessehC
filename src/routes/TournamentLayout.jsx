@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
-import { Alert, Badge, Button, FormSelect, Nav } from "react-bootstrap";
+import { Alert, Badge, Button, Container, FormSelect, Nav } from "react-bootstrap";
 import { Link, Outlet, useHref, useNavigate, useParams } from "react-router-dom"
 
 function TournamentLayout() {
@@ -81,6 +81,8 @@ function TournamentLayout() {
                 }}>Realizar pareo</Button>
             </Nav.Item>
         </Nav>
+        <Container>
+
         {
             typeof makePairingResult !== "undefined"
             && (
@@ -90,6 +92,7 @@ function TournamentLayout() {
         )
         }
         <Outlet></Outlet>
+        </Container>
     </>)
 }
 

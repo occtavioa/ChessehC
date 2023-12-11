@@ -467,6 +467,18 @@ async fn make_trf_file(path: PathBuf, app: AppHandle) -> Result<String, InvokeEr
     Ok(trf_path.into_os_string().into_string()?)
 }
 
+#[tauri::command]
+async fn get_tournament_status(path: PathBuf) -> Result<String, InvokeErrorBind> {
+    let connection = open_not_create(&path).await?;
+    let tournament = select_tournament(&connection)?;
+    let rounds = tournament.get_rounds(&connection)?;
+    if tournament.number_rounds as usize == rounds.len() {
+        Ok(String::from("Finished"))
+    } else {
+        Ok(String::from("Ongoing"))
+    }
+}
+
 fn get_bbp_input_file_path(app: &AppHandle) -> tauri::api::Result<PathBuf> {
     resolve_path(
         &app.config(),
@@ -546,7 +558,8 @@ fn main() {
             set_game_result,
             get_game_players,
             make_trf_file,
-            save_tournament_file
+            save_tournament_file,
+            get_tournament_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

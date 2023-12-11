@@ -10,6 +10,7 @@ import Standings from "./routes/Standings";
 import Error from "./routes/Error";
 import { invoke } from "@tauri-apps/api";
 import 'bootstrap/dist/css/bootstrap.min.css';
+import "bootstrap-icons/font/bootstrap-icons.css";
 
 const router = createBrowserRouter([
   {
@@ -74,7 +75,8 @@ const router = createBrowserRouter([
             loader: async ({params}) => {
               let {path, roundId} = params
               let standings = await invoke("get_standings_by_round", {path: atob(path), roundId: parseInt(roundId)})
-              return standings
+              let status = await invoke("get_tournament_status", {path: atob(path)})
+              return {standings, status}
             }
           }
         ]
